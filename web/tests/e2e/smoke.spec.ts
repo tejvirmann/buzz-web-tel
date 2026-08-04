@@ -117,6 +117,30 @@ test("mobile layout exposes the channel drawer", async ({ page }) => {
   });
 });
 
+test("mobile Inbox and Agents views remain usable", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await enableDemo(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Inbox" }).last().click();
+  await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
+  await expect(page.getByText("Can you review the deployment checklist?").first()).toBeVisible();
+  await expectNoViewportOverflow(page);
+  await page.screenshot({
+    path: "test-results/visual/buzz-web-inbox-mobile.png",
+    animations: "disabled",
+  });
+
+  await page.getByRole("button", { name: "Agents" }).last().click();
+  await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible();
+  await expect(page.getByText("Codex(remote)").first()).toBeVisible();
+  await expectNoViewportOverflow(page);
+  await page.screenshot({
+    path: "test-results/visual/buzz-web-agents-mobile.png",
+    animations: "disabled",
+  });
+});
+
 test("desktop channel panel shrinks left and restores its saved width", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await enableDemo(page);
@@ -333,6 +357,81 @@ test("projects navigation stays in the authenticated SPA", async ({ page }) => {
   await expect(page).toHaveURL(/\/repos$/);
   await expect(page.getByRole("heading", { name: "Repositories" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Use NIP-07 extension" })).toHaveCount(0);
+});
+
+test("community admins can add a member or generate an invite link", async ({ page }) => {
+  await enableDemo(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Invite people" }).click();
+  const memberDialog = page.getByRole("dialog", { name: "Invite people" });
+  await memberDialog.getByLabel("Member public key").fill("c".repeat(64));
+  await memberDialog.getByRole("button", { name: "Add member" }).last().click();
+  await expect(memberDialog).toBeHidden();
+  await expect(page.getByText("Relay member added")).toBeVisible();
+
+  await page.getByRole("button", { name: "Invite people" }).click();
+  const inviteDialog = page.getByRole("dialog", { name: "Invite people" });
+  await inviteDialog.getByRole("button", { name: "Invite link" }).click();
+  await inviteDialog.getByLabel("Expires after").selectOption("604800");
+  await inviteDialog.getByLabel("Limit number of uses").selectOption("3");
+  await inviteDialog.getByRole("button", { name: "Generate link" }).click();
+  await expect(inviteDialog.getByLabel("Generated invite link")).toHaveValue(
+    /\/invite\/demo-code$/,
+  );
+  await page.screenshot({
+    path: "test-results/visual/buzz-web-invite.png",
+    animations: "disabled",
+  });
+});
+
+test("remote agents can be inspected, assigned to channels, and messaged", async ({ page }) => {
+  await enableDemo(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Agents" }).first().click();
+  await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible();
+  await expect(page.getByText("2 remote agents")).toBeVisible();
+  await expect(page.getByText("Agent default")).toBeVisible();
+
+  const remove = page.getByRole("button", { name: "Remove from #general" });
+  await remove.click();
+  await expect(page.getByRole("button", { name: "Add to #general" })).toBeVisible();
+  await page.getByRole("button", { name: "Add to #general" }).click();
+  await expect(page.getByRole("button", { name: "Remove from #general" })).toBeVisible();
+  await page.screenshot({
+    path: "test-results/visual/buzz-web-agents.png",
+    animations: "disabled",
+  });
+
+  await page.getByRole("button", { name: "Message", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Codex(remote)" })).toBeVisible();
+});
+
+test("Inbox filters unread activity and opens the source thread", async ({ page }) => {
+  await enableDemo(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Inbox" }).first().click();
+  await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
+  await expect(page.getByText("4 unread")).toBeVisible();
+  await page.screenshot({
+    path: "test-results/visual/buzz-web-inbox.png",
+    animations: "disabled",
+  });
+
+  await page.getByLabel("Filter Inbox").selectOption("thread");
+  const reply = page.getByRole("button", {
+    name: /Verification is complete and the result is attached/,
+  });
+  await reply.click();
+  await expect(page.getByText("3 unread")).toBeVisible();
+  await page.getByRole("button", { name: "Open conversation" }).click();
+  await expect(page.getByRole("complementary", { name: "Thread" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Inbox" }).first().click();
+  await page.getByRole("button", { name: "Mark all as read" }).click();
+  await expect(page.getByText("0 unread")).toBeVisible();
 });
 
 test("Chinese browsers receive the Chinese interface", async ({ browser }) => {

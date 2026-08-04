@@ -1,6 +1,9 @@
 import { AlertTriangle, Hash, LoaderCircle, Lock, Menu, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import buzzAppIcon from "@/assets/app-icon@3x.png";
+import { AgentsView } from "@/features/agents/ui/AgentsView";
+import { useRelayAgents } from "@/features/agents/use-relay-agents";
 import { channelDisplayName } from "@/features/chat/lib/chat-model";
 import { useBuzzSession } from "@/features/chat/lib/use-buzz-session";
 import {
@@ -9,7 +12,7 @@ import {
   SearchDialog,
   SettingsDialog,
 } from "@/features/chat/ui/AppDialogs";
-import { AppNavigation } from "@/features/chat/ui/AppNavigation";
+import { AppNavigation, type WorkspaceView } from "@/features/chat/ui/AppNavigation";
 import { ChannelHeaderActions } from "@/features/chat/ui/ChannelHeaderActions";
 import { IdentityGate } from "@/features/chat/ui/IdentityGate";
 import { useLeftPanelWidth } from "@/features/chat/ui/LeftPanelSizing";
@@ -18,12 +21,17 @@ import { MessageComposer } from "@/features/chat/ui/MessageComposer";
 import { MessageList } from "@/features/chat/ui/MessageList";
 import { useRightPanelWidth } from "@/features/chat/ui/RightPanelSizing";
 import { ThreadPanel } from "@/features/chat/ui/ThreadPanel";
+import { addCommunityMember, mintCommunityInvite } from "@/features/community/invite-api";
+import { CommunityInviteDialog } from "@/features/community/ui/CommunityInviteDialog";
+import type { InboxItem } from "@/features/inbox/lib/inbox-model";
+import { InboxView } from "@/features/inbox/ui/InboxView";
+import { useInbox } from "@/features/inbox/use-inbox";
 import { clearMediaObjectUrls } from "@/shared/api/media-client";
 import { BuzzRelayClient } from "@/shared/api/relay-client";
 import { loadRuntimeConfig, type RuntimeConfig } from "@/shared/config/runtime-config";
 import { t } from "@/shared/i18n";
 
-type DialogName = "create" | "dm" | "search" | "settings" | null;
+type DialogName = "create" | "dm" | "search" | "settings" | "invite" | null;
 
 function defaultMemberPanelVisibility(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(min-width: 1536px)").matches;
@@ -46,6 +54,7 @@ function Workspace({
   );
   const session = useBuzzSession({ client, config, pubkey, demo });
   const { state, selectedChannel } = session;
+  const [activeView, setActiveView] = useState<WorkspaceView>("messages");
   const [dialog, setDialog] = useState<DialogName>(null);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [threadRootId, setThreadRootId] = useState<string | null>(null);
@@ -57,6 +66,25 @@ function Workspace({
     setPanelWidth: setNavigationWidth,
   } = useLeftPanelWidth();
   const { maximum, panelWidth, setPanelWidth } = useRightPanelWidth();
+  const relayAgents = useRelayAgents({
+    client,
+    demo,
+    configuredAgents: config.agents,
+    channels: state.channels,
+    profiles: state.profiles,
+    presence: state.presence,
+    ensureProfiles: session.ensureProfiles,
+    refreshChannels: session.refreshChannels,
+  });
+  const inbox = useInbox({
+    client,
+    demo,
+    relayUrl: config.relayUrl,
+    currentPubkey: pubkey,
+    configuredAgents: config.agents,
+    channels: state.channels,
+    ensureProfiles: session.ensureProfiles,
+  });
   const threadRoot = state.messages.find((message) => message.event.id === threadRootId) ?? null;
   const canCreateChannel = state.communityRole === "owner" || state.communityRole === "admin";
   const connected = state.connectionState === "connected";
@@ -67,9 +95,31 @@ function Workspace({
     signOut();
   };
   const selectChannel = (channelId: string) => {
+    setActiveView("messages");
     setThreadRootId(null);
     if (!defaultMemberPanelVisibility()) setMemberPanelOpen(false);
     session.selectChannel(channelId);
+  };
+  const openView = (view: WorkspaceView) => {
+    setActiveView(view);
+    setMobileNavigationOpen(false);
+  };
+  const openInboxConversation = (item: InboxItem) => {
+    if (!item.channelId) return;
+    setActiveView("messages");
+    setMobileNavigationOpen(false);
+    setMemberPanelOpen(false);
+    session.selectChannel(item.channelId);
+    setThreadRootId(item.threadRootId);
+  };
+  const openAgentDm = async (targetPubkey: string) => {
+    try {
+      await session.openDm(targetPubkey);
+      setActiveView("messages");
+      setThreadRootId(null);
+    } catch (openError) {
+      toast.error(openError instanceof Error ? openError.message : t("error.dmOpen"));
+    }
   };
   const toggleMemberPanel = () => {
     if (threadRootId) {
@@ -90,11 +140,14 @@ function Workspace({
   return (
     <div className="buzz-app-surface flex h-dvh min-h-0 w-full overflow-hidden pb-14 md:p-2 md:pb-2">
       <AppNavigation
+        activeView={activeView}
         canCreateChannel={canCreateChannel}
+        canManageMembers={canCreateChannel}
         channels={state.channels}
         communityName={config.communityName}
         connectionState={state.connectionState}
         currentPubkey={pubkey}
+        inboxUnreadCount={inbox.unreadCount}
         mobileOpen={mobileNavigationOpen}
         maximumWidth={maximumNavigationWidth}
         panelWidth={navigationWidth}
@@ -104,7 +157,9 @@ function Workspace({
         selectedChannelId={state.selectedChannelId}
         onCloseMobile={() => setMobileNavigationOpen(false)}
         onCreateChannel={() => setDialog("create")}
+        onInvite={() => setDialog("invite")}
         onNewDm={() => setDialog("dm")}
+        onOpenView={openView}
         onSearch={() => setDialog("search")}
         onSelectChannel={selectChannel}
         onSettings={() => setDialog("settings")}
@@ -112,149 +167,182 @@ function Workspace({
       />
 
       <section className="buzz-content-surface relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border">
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <header className="flex h-[60px] shrink-0 items-center gap-2 border-b px-3 sm:px-4">
-            <button
-              aria-label={t("workspace.openChannels")}
-              className="buzz-icon-button md:!hidden"
-              title={t("common.channel")}
-              type="button"
-              onClick={() => setMobileNavigationOpen(true)}
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              {selectedChannel?.type === "dm" ? (
-                <Users className="h-[18px] w-[18px] shrink-0 text-muted-foreground" />
-              ) : (
-                <Hash className="h-[18px] w-[18px] shrink-0 text-muted-foreground" />
-              )}
-              <h1 className="truncate text-[15px] font-semibold">{displayName}</h1>
-              {selectedChannel?.visibility === "private" ? (
-                <Lock className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Private" />
-              ) : null}
-            </div>
-            {selectedChannel ? (
-              <ChannelHeaderActions
-                loading={state.loadingChannels}
-                memberCount={selectedChannel.members.length}
-                membersVisible={!threadRoot && memberPanelOpen}
-                onRefresh={() => void session.refreshChannels()}
-                onSearch={() => setDialog("search")}
-                onSettings={() => setDialog("settings")}
-                onToggleMembers={toggleMemberPanel}
-              />
-            ) : null}
-          </header>
-
-          {state.error ? (
-            <div className="flex items-center gap-2 border-b border-destructive/20 bg-destructive/8 px-4 py-2 text-xs text-destructive">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              <span className="min-w-0 flex-1 truncate">{state.error}</span>
-              {state.error.toLowerCase().includes("member") || state.error.includes("成员") ? (
+        {activeView === "messages" ? (
+          <>
+            <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <header className="flex h-[60px] shrink-0 items-center gap-2 border-b px-3 sm:px-4">
                 <button
-                  className="shrink-0 font-medium underline"
+                  aria-label={t("workspace.openChannels")}
+                  className="buzz-icon-button md:!hidden"
+                  title={t("common.channel")}
                   type="button"
-                  onClick={handleSignOut}
+                  onClick={() => setMobileNavigationOpen(true)}
                 >
-                  {t("workspace.changeIdentity")}
+                  <Menu className="h-5 w-5" />
                 </button>
-              ) : null}
-            </div>
-          ) : null}
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  {selectedChannel?.type === "dm" ? (
+                    <Users className="h-[18px] w-[18px] shrink-0 text-muted-foreground" />
+                  ) : (
+                    <Hash className="h-[18px] w-[18px] shrink-0 text-muted-foreground" />
+                  )}
+                  <h1 className="truncate text-[15px] font-semibold">{displayName}</h1>
+                  {selectedChannel?.visibility === "private" ? (
+                    <Lock className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Private" />
+                  ) : null}
+                </div>
+                {selectedChannel ? (
+                  <ChannelHeaderActions
+                    loading={state.loadingChannels}
+                    memberCount={selectedChannel.members.length}
+                    membersVisible={!threadRoot && memberPanelOpen}
+                    onRefresh={() => void session.refreshChannels()}
+                    onSearch={() => setDialog("search")}
+                    onSettings={() => setDialog("settings")}
+                    onToggleMembers={toggleMemberPanel}
+                  />
+                ) : null}
+              </header>
 
-          {selectedChannel ? (
-            <>
-              <MessageList
-                currentPubkey={pubkey}
-                loading={state.loadingMessages}
+              {state.error ? (
+                <div className="flex items-center gap-2 border-b border-destructive/20 bg-destructive/8 px-4 py-2 text-xs text-destructive">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{state.error}</span>
+                  {state.error.toLowerCase().includes("member") || state.error.includes("成员") ? (
+                    <button
+                      className="shrink-0 font-medium underline"
+                      type="button"
+                      onClick={handleSignOut}
+                    >
+                      {t("workspace.changeIdentity")}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {selectedChannel ? (
+                <>
+                  <MessageList
+                    currentPubkey={pubkey}
+                    loading={state.loadingMessages}
+                    messages={state.messages}
+                    presence={state.presence}
+                    profiles={state.profiles}
+                    relayUrl={config.relayUrl}
+                    onOpenThread={(message) => setThreadRootId(message.event.id)}
+                    onReact={session.addReaction}
+                  />
+                  {typingNames.length ? (
+                    <div className="h-6 shrink-0 px-5 text-[11px] text-muted-foreground">
+                      {t("workspace.typing", { names: typingNames.slice(0, 3).join(", ") })}
+                    </div>
+                  ) : null}
+                  <MessageComposer
+                    disabled={!connected}
+                    insertMention={insertMention}
+                    members={selectedChannel.members}
+                    placeholder={t("workspace.sendTo", {
+                      target: selectedChannel.type === "dm" ? displayName : `#${displayName}`,
+                    })}
+                    profiles={state.profiles}
+                    relayUrl={config.relayUrl}
+                    onMentionInserted={() => setInsertMention(null)}
+                    onSend={(content, attachments) => session.sendMessage(content, attachments)}
+                    onTyping={() => session.notifyTyping()}
+                  />
+                </>
+              ) : (
+                <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                  {state.loadingChannels ? (
+                    <>
+                      <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                      {t("workspace.loadingChannels")}
+                    </>
+                  ) : (
+                    t("workspace.noChannels")
+                  )}
+                </div>
+              )}
+            </main>
+
+            {threadRoot ? (
+              <ThreadPanel
+                key={threadRoot.event.id}
+                disabled={!connected}
+                maximumWidth={maximum}
                 messages={state.messages}
+                members={selectedChannel?.members ?? []}
+                panelWidth={panelWidth}
                 presence={state.presence}
                 profiles={state.profiles}
                 relayUrl={config.relayUrl}
-                onOpenThread={(message) => setThreadRootId(message.event.id)}
+                root={threadRoot}
+                onClose={() => setThreadRootId(null)}
                 onReact={session.addReaction}
+                onResize={setPanelWidth}
+                onSend={(content, attachments, replyTarget) =>
+                  session.sendMessage(content, attachments, {
+                    id: replyTarget.event.id,
+                    rootId: threadRoot.event.id,
+                    authorPubkey: replyTarget.event.pubkey,
+                  })
+                }
+                onTyping={(replyTarget) =>
+                  session.notifyTyping({
+                    id: replyTarget.event.id,
+                    rootId: threadRoot.event.id,
+                    authorPubkey: replyTarget.event.pubkey,
+                  })
+                }
               />
-              {typingNames.length ? (
-                <div className="h-6 shrink-0 px-5 text-[11px] text-muted-foreground">
-                  {t("workspace.typing", { names: typingNames.slice(0, 3).join(", ") })}
-                </div>
-              ) : null}
-              <MessageComposer
-                disabled={!connected}
-                insertMention={insertMention}
-                members={selectedChannel.members}
-                placeholder={t("workspace.sendTo", {
-                  target: selectedChannel.type === "dm" ? displayName : `#${displayName}`,
-                })}
+            ) : selectedChannel && memberPanelOpen ? (
+              <MemberPanel
+                channel={selectedChannel}
+                currentPubkey={pubkey}
+                maximumWidth={maximum}
+                panelWidth={panelWidth}
+                presence={state.presence}
                 profiles={state.profiles}
                 relayUrl={config.relayUrl}
-                onMentionInserted={() => setInsertMention(null)}
-                onSend={(content, attachments) => session.sendMessage(content, attachments)}
-                onTyping={() => session.notifyTyping()}
+                onClose={() => setMemberPanelOpen(false)}
+                onMention={setInsertMention}
+                onOpenDm={async (target) => {
+                  await session.openDm(target);
+                }}
+                onResize={setPanelWidth}
               />
-            </>
-          ) : (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-              {state.loadingChannels ? (
-                <>
-                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                  {t("workspace.loadingChannels")}
-                </>
-              ) : (
-                t("workspace.noChannels")
-              )}
-            </div>
-          )}
-        </main>
-
-        {threadRoot ? (
-          <ThreadPanel
-            key={threadRoot.event.id}
-            disabled={!connected}
-            maximumWidth={maximum}
-            messages={state.messages}
-            members={selectedChannel?.members ?? []}
-            panelWidth={panelWidth}
-            presence={state.presence}
+            ) : null}
+          </>
+        ) : activeView === "agents" ? (
+          <AgentsView
+            agents={relayAgents.agents}
+            channels={state.channels}
+            error={relayAgents.error}
+            loading={relayAgents.loading}
+            pendingAction={relayAgents.pendingAction}
             profiles={state.profiles}
             relayUrl={config.relayUrl}
-            root={threadRoot}
-            onClose={() => setThreadRootId(null)}
-            onReact={session.addReaction}
-            onResize={setPanelWidth}
-            onSend={(content, attachments, replyTarget) =>
-              session.sendMessage(content, attachments, {
-                id: replyTarget.event.id,
-                rootId: threadRoot.event.id,
-                authorPubkey: replyTarget.event.pubkey,
-              })
-            }
-            onTyping={(replyTarget) =>
-              session.notifyTyping({
-                id: replyTarget.event.id,
-                rootId: threadRoot.event.id,
-                authorPubkey: replyTarget.event.pubkey,
-              })
-            }
+            onOpenDm={openAgentDm}
+            onRefresh={() => void relayAgents.refresh()}
+            onSetChannel={relayAgents.setAgentChannel}
           />
-        ) : selectedChannel && memberPanelOpen ? (
-          <MemberPanel
-            channel={selectedChannel}
-            currentPubkey={pubkey}
-            maximumWidth={maximum}
-            panelWidth={panelWidth}
-            presence={state.presence}
+        ) : (
+          <InboxView
+            approvalPending={inbox.approvalPending}
+            channels={state.channels}
+            error={inbox.error}
+            items={inbox.items}
+            loading={inbox.loading}
             profiles={state.profiles}
             relayUrl={config.relayUrl}
-            onClose={() => setMemberPanelOpen(false)}
-            onMention={setInsertMention}
-            onOpenDm={async (target) => {
-              await session.openDm(target);
-            }}
-            onResize={setPanelWidth}
+            onMarkAllRead={inbox.markAllRead}
+            onMarkRead={inbox.markRead}
+            onMarkUnread={inbox.markUnread}
+            onOpenConversation={openInboxConversation}
+            onRefresh={() => void inbox.refresh()}
+            onRespondToApproval={(item, approved) => inbox.respondToApproval(item.event, approved)}
           />
-        ) : null}
+        )}
       </section>
 
       {dialog === "create" ? (
@@ -285,6 +373,32 @@ function Workspace({
           relayUrl={config.relayUrl}
           onClose={() => setDialog(null)}
           onSignOut={handleSignOut}
+        />
+      ) : null}
+      {dialog === "invite" ? (
+        <CommunityInviteDialog
+          onClose={() => setDialog(null)}
+          onAddMember={async (targetPubkey, role) => {
+            if (demo) return;
+            if (!client) throw new Error(t("error.relayClient"));
+            await addCommunityMember(client, targetPubkey, role);
+            await session.ensureProfiles([targetPubkey]);
+          }}
+          onMintInvite={async (options) => {
+            if (demo) {
+              return {
+                code: "demo-code",
+                expiresAt: Math.floor(Date.now() / 1_000) + options.ttlSecs,
+                url: new URL(
+                  `${import.meta.env.BASE_URL}invite/demo-code`,
+                  window.location.origin,
+                ).toString(),
+                maxUses: options.maxUses,
+                usesRemaining: options.maxUses,
+              };
+            }
+            return mintCommunityInvite(config.relayUrl, options);
+          }}
         />
       ) : null}
     </div>

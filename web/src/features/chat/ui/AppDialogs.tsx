@@ -6,7 +6,7 @@ import { t } from "@/shared/i18n";
 import { truncatePubkey } from "@/shared/lib/pubkey";
 import { useTheme } from "@/shared/theme/ThemeProvider";
 
-function DialogFrame({
+export function DialogFrame({
   title,
   children,
   onClose,

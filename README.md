@@ -1,8 +1,9 @@
 # Buzz Web
 
-Buzz Web is a standalone browser client for a Buzz Relay. It provides channels, direct messages,
-threads, reactions, search, media, presence, remote agents, and NIP-34 repository browsing without
-bundling or modifying the Relay itself.
+Buzz Web is a standalone browser client for a Buzz Relay. It provides Inbox, channels, direct
+messages, threads, reactions, search, media, presence, Relay invitations, remote-agent management,
+and NIP-34 repository browsing without bundling or modifying the Relay itself. The detailed macOS
+comparison and implementation roadmap are tracked in [FEATURE_PARITY.md](FEATURE_PARITY.md).
 
 ## Development
 

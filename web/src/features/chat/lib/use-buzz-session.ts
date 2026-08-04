@@ -841,6 +841,7 @@ export function useBuzzSession({
     openDm,
     search,
     notifyTyping,
+    ensureProfiles: loadProfiles,
     refreshChannels: loadChannels,
   };
 }
