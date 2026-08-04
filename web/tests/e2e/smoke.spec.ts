@@ -359,8 +359,8 @@ test("workspace tools replace chat while preserving channel navigation", async (
   const reposPanel = page.getByTestId("workspace-tool-repos");
   await expect(page).toHaveURL(/\/$/);
   await expect(reposPanel).toBeVisible();
-  await expect(reposPanel.getByRole("heading", { name: "Repositories" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "general" })).toHaveCount(0);
+  await expect(reposPanel.getByRole("heading", { name: "Projects" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "general", exact: true })).toHaveCount(0);
   await expect(composer).toHaveCount(0);
   await expect(page.getByRole("button", { name: "general", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Codex(remote)", exact: true })).toBeVisible();
@@ -380,7 +380,7 @@ test("workspace tools replace chat while preserving channel navigation", async (
   await page.getByRole("button", { name: "Agents" }).first().click();
   await expect(reposPanel).toHaveCount(0);
   await expect(page.getByTestId("workspace-tool-agents")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "general" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "general", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "general", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Agents" }).first().click();
@@ -422,14 +422,14 @@ test("remote agents can be inspected, assigned to channels, and messaged", async
   await page.getByRole("button", { name: "Agents" }).first().click();
   const agentsPanel = page.getByTestId("workspace-tool-agents");
   await expect(agentsPanel.getByRole("heading", { name: "Agents" })).toBeVisible();
-  await expect(agentsPanel.getByText("2 remote agents")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "general" })).toHaveCount(0);
+  await expect(agentsPanel.getByText("Grok(remote)", { exact: true })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "general", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "general", exact: true })).toBeVisible();
   await expect(agentsPanel.getByText("Codex(remote)", { exact: true })).toHaveCount(1);
 
-  await agentsPanel.getByText("Codex(remote)", { exact: true }).click();
-  await expect(agentsPanel.getByText("Codex(remote)", { exact: true })).toHaveCount(1);
-  await expect(agentsPanel.getByText("Agent default")).toBeVisible();
+  await agentsPanel.getByRole("button", { name: "Manage Codex(remote)" }).first().click();
+  await expect(agentsPanel.getByRole("button", { name: "Back to agents" })).toBeVisible();
+  await expect(agentsPanel.getByText("Agent default", { exact: true })).toBeVisible();
 
   const remove = agentsPanel.getByRole("button", { name: "Remove from #general" });
   await remove.click();
@@ -453,14 +453,14 @@ test("Inbox filters unread activity and opens the source thread", async ({ page 
   const inboxPanel = page.getByTestId("workspace-tool-inbox");
   await expect(inboxPanel.getByRole("heading", { name: "Inbox" })).toBeVisible();
   await expect(inboxPanel.getByText("4 unread")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "general" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "general", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "general", exact: true })).toBeVisible();
   await page.screenshot({
     path: "test-results/visual/buzz-web-inbox.png",
     animations: "disabled",
   });
 
-  await inboxPanel.getByLabel("Filter Inbox").selectOption("thread");
+  await inboxPanel.getByRole("combobox", { name: "Filter Inbox" }).selectOption("thread");
   const reply = inboxPanel.getByRole("button", {
     name: /Verification is complete and the result is attached/,
   });

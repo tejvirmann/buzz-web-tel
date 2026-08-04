@@ -1,10 +1,12 @@
 import {
   ArrowLeft,
-  ArrowRight,
+  ArrowUp,
   CheckCheck,
+  ExternalLink,
   Inbox,
   LoaderCircle,
   Mail,
+  MoreHorizontal,
   RefreshCw,
   RotateCcw,
   X,
@@ -36,6 +38,23 @@ function relativeTime(createdAt: number): string {
   const hours = Math.round(minutes / 60);
   if (Math.abs(hours) < 24) return formatter.format(hours, "hour");
   return formatter.format(Math.round(hours / 24), "day");
+}
+
+function eventTime(createdAt: number): string {
+  return new Intl.DateTimeFormat(getLocale(), {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(createdAt * 1_000);
+}
+
+function fallbackProfile(item: InboxItem): UserProfile {
+  return {
+    pubkey: item.event.pubkey,
+    name: truncatePubkey(item.event.pubkey),
+    about: "",
+    picture: null,
+    isAgent: false,
+  };
 }
 
 export function InboxView({
@@ -79,36 +98,57 @@ export function InboxView({
       ),
     [filter, items, unreadOnly],
   );
-  const selected = selectedId ? (items.find((item) => item.id === selectedId) ?? null) : null;
+  const selected = selectedId
+    ? (items.find((item) => item.id === selectedId) ?? visibleItems[0] ?? null)
+    : (visibleItems[0] ?? null);
   const unreadCount = items.filter((item) => item.unread).length;
-  const selectedProfile = selected ? profiles[selected.event.pubkey.toLowerCase()] : null;
+  const selectedProfile = selected
+    ? (profiles[selected.event.pubkey.toLowerCase()] ?? fallbackProfile(selected))
+    : null;
   const selectedChannel = selected?.channelId
     ? channels.find((channel) => channel.id === selected.channelId)
     : null;
+  const relatedItems = selected
+    ? items
+        .filter(
+          (item) =>
+            item.channelId === selected.channelId &&
+            (selected.threadRootId ? item.threadRootId === selected.threadRootId : true),
+        )
+        .sort((left, right) => left.event.created_at - right.event.created_at)
+    : [];
+  const detailTitle = selectedChannel
+    ? selectedChannel.type === "dm"
+      ? t("inbox.directConversation")
+      : t("inbox.threadIn", { channel: selectedChannel.name })
+    : t("inbox.details");
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex h-[60px] shrink-0 items-center gap-2 border-b px-3">
-        {selected ? (
-          <button
-            aria-label={t("inbox.backToList")}
-            className="buzz-icon-button"
-            title={t("inbox.backToList")}
-            type="button"
-            onClick={() => setSelectedId(null)}
+    <div className="flex min-h-0 flex-1 overflow-hidden">
+      <section
+        aria-label={t("inbox.list")}
+        className={`min-h-0 w-full shrink-0 flex-col border-r lg:flex lg:w-[40%] lg:min-w-[340px] lg:max-w-[440px] ${selectedId ? "hidden" : "flex"}`}
+      >
+        <header className="flex h-[52px] shrink-0 items-center gap-2 border-b px-3">
+          <Inbox className="h-[18px] w-[18px] shrink-0 text-muted-foreground lg:hidden" />
+          <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold lg:sr-only">
+            {t("inbox.title")}
+          </h2>
+          <select
+            aria-label={t("inbox.filter")}
+            className="hidden h-8 min-w-28 rounded-md bg-transparent px-1 text-sm font-semibold outline-none lg:block"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value as InboxFilter)}
           >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-        ) : (
-          <Inbox className="h-[18px] w-[18px] shrink-0 text-muted-foreground" />
-        )}
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[15px] font-semibold">{t("inbox.title")}</h2>
-          <p className="truncate text-[11px] text-muted-foreground">
+            <option value="all">{t("inbox.all")}</option>
+            <option value="mention">{t("inbox.mentions")}</option>
+            <option value="dm">{t("inbox.directMessages")}</option>
+            <option value="thread">{t("inbox.threadReplies")}</option>
+            <option value="needs_action">{t("inbox.needsAction")}</option>
+          </select>
+          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
             {t("inbox.unreadCount", { count: unreadCount })}
-          </p>
-        </div>
-        {!selected ? (
+          </span>
           <button
             aria-label={t("inbox.markAllRead")}
             className="buzz-icon-button"
@@ -119,219 +159,267 @@ export function InboxView({
           >
             <CheckCheck className="h-4 w-4" />
           </button>
+          <button
+            aria-label={t("common.refresh")}
+            className="buzz-icon-button"
+            disabled={loading}
+            title={t("common.refresh")}
+            type="button"
+            onClick={onRefresh}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+          <MoreHorizontal className="hidden h-4 w-4 text-muted-foreground xl:block" />
+        </header>
+
+        <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2 lg:hidden">
+          <select
+            aria-label={t("inbox.filter")}
+            className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value as InboxFilter)}
+          >
+            <option value="all">{t("inbox.all")}</option>
+            <option value="mention">{t("inbox.mentions")}</option>
+            <option value="dm">{t("inbox.directMessages")}</option>
+            <option value="thread">{t("inbox.threadReplies")}</option>
+            <option value="needs_action">{t("inbox.needsAction")}</option>
+          </select>
+          <button
+            aria-label={t("inbox.close")}
+            className="buzz-icon-button"
+            type="button"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <label className="flex h-9 shrink-0 items-center gap-2 border-b px-4 text-xs text-muted-foreground">
+          <input
+            checked={unreadOnly}
+            className="h-3.5 w-3.5 shrink-0 accent-primary"
+            type="checkbox"
+            onChange={(event) => setUnreadOnly(event.target.checked)}
+          />
+          {t("inbox.unreadOnly")}
+        </label>
+
+        {error ? (
+          <div className="border-b bg-destructive/8 px-3 py-2 text-xs text-destructive">
+            {error}
+          </div>
         ) : null}
-        <button
-          aria-label={t("common.refresh")}
-          className="buzz-icon-button"
-          disabled={loading}
-          title={t("common.refresh")}
-          type="button"
-          onClick={onRefresh}
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-        </button>
-        <button
-          aria-label={t("inbox.close")}
-          className="buzz-icon-button"
-          title={t("inbox.close")}
-          type="button"
-          onClick={onClose}
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </header>
 
-      {error ? (
-        <div className="border-b bg-destructive/8 px-3 py-2 text-xs text-destructive">{error}</div>
-      ) : null}
+        <div className="buzz-scrollbar min-h-0 flex-1 overflow-y-auto">
+          {visibleItems.map((item) => {
+            const profile = profiles[item.event.pubkey.toLowerCase()] ?? fallbackProfile(item);
+            const channel = item.channelId
+              ? channels.find((candidate) => candidate.id === item.channelId)
+              : null;
+            const isSelected = selected?.id === item.id;
+            return (
+              <button
+                key={item.id}
+                aria-pressed={isSelected}
+                className={`group flex min-h-[108px] w-full gap-3 border-b px-4 py-4 text-left transition-colors ${
+                  isSelected ? "bg-foreground/[0.055]" : "hover:bg-foreground/[0.035]"
+                }`}
+                type="button"
+                onClick={() => {
+                  setSelectedId(item.id);
+                  onMarkRead(item.id);
+                }}
+              >
+                <Avatar profile={profile} relayUrl={relayUrl} size={38} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                      {profile.name}
+                    </span>
+                    {item.unread ? (
+                      <span
+                        aria-label={t("inbox.unread")}
+                        className="h-2 w-2 shrink-0 rounded-full bg-primary"
+                        role="img"
+                      />
+                    ) : null}
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {relativeTime(item.event.created_at)}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <span>{categoryLabel(item.category)}</span>
+                    {channel ? (
+                      <>
+                        <span>·</span>
+                        <span className="truncate">#{channel.name}</span>
+                      </>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-[13px] leading-5 text-foreground/90">
+                    {inboxPreview(item.event) || t("inbox.noDetails")}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+          {!loading && !visibleItems.length ? (
+            <div className="px-5 py-14 text-center">
+              <Mail className="mx-auto h-8 w-8 text-muted-foreground/50" />
+              <p className="mt-3 text-sm text-muted-foreground">{t("inbox.empty")}</p>
+            </div>
+          ) : null}
+          {loading && !visibleItems.length ? (
+            <div className="flex items-center justify-center px-5 py-14 text-sm text-muted-foreground">
+              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+              {t("inbox.loading")}
+            </div>
+          ) : null}
+        </div>
+      </section>
 
-      {selected ? (
-        <article className="buzz-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-5">
-          <header className="flex items-start gap-3 border-b pb-5">
-            <Avatar
-              profile={
-                selectedProfile ?? {
-                  pubkey: selected.event.pubkey,
-                  name: truncatePubkey(selected.event.pubkey),
-                  about: "",
-                  picture: null,
-                  isAgent: false,
+      <section
+        aria-label={detailTitle}
+        className={`min-h-0 min-w-0 flex-1 flex-col ${selectedId ? "flex" : "hidden lg:flex"}`}
+      >
+        <header className="flex h-[52px] shrink-0 items-center gap-2 border-b px-3 sm:px-4">
+          <button
+            aria-label={t("inbox.backToList")}
+            className="buzz-icon-button lg:!hidden"
+            title={t("inbox.backToList")}
+            type="button"
+            onClick={() => setSelectedId(null)}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <h3 className="min-w-0 flex-1 truncate text-sm font-semibold">{detailTitle}</h3>
+          {selected ? (
+            <>
+              <button
+                aria-label={selected.unread ? t("inbox.markRead") : t("inbox.markUnread")}
+                className="buzz-icon-button"
+                title={selected.unread ? t("inbox.markRead") : t("inbox.markUnread")}
+                type="button"
+                onClick={() =>
+                  selected.unread ? onMarkRead(selected.id) : onMarkUnread(selected.id)
                 }
-              }
-              relayUrl={relayUrl}
-              size={40}
-            />
-            <div className="min-w-0 flex-1">
-              <h3 className="break-words text-sm font-semibold">
-                {selectedProfile?.name ?? truncatePubkey(selected.event.pubkey)}
-              </h3>
-              <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-                <span>{categoryLabel(selected.category)}</span>
-                {selectedChannel ? <span>#{selectedChannel.name}</span> : null}
-                <time>
-                  {new Intl.DateTimeFormat(getLocale(), {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  }).format(selected.event.created_at * 1_000)}
-                </time>
+              >
+                {selected.unread ? (
+                  <CheckCheck className="h-4 w-4" />
+                ) : (
+                  <RotateCcw className="h-4 w-4" />
+                )}
+              </button>
+              <button
+                aria-label={t("inbox.openInChat")}
+                className="buzz-icon-button"
+                disabled={!selected.channelId}
+                title={t("inbox.openInChat")}
+                type="button"
+                onClick={() => onOpenConversation(selected)}
+              >
+                <ExternalLink className="h-4 w-4" />
+              </button>
+            </>
+          ) : null}
+          <button
+            aria-label={t("inbox.close")}
+            className="buzz-icon-button"
+            title={t("inbox.close")}
+            type="button"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        {selected && selectedProfile ? (
+          <>
+            <div className="buzz-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+              <div className="mx-auto max-w-[900px]">
+                {relatedItems.map((item, index) => {
+                  const profile =
+                    profiles[item.event.pubkey.toLowerCase()] ?? fallbackProfile(item);
+                  return (
+                    <article key={item.id} className={index ? "mt-5 border-t pt-5" : undefined}>
+                      <div className="flex items-start gap-3">
+                        <Avatar profile={profile} relayUrl={relayUrl} size={40} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                            <strong className="text-sm font-semibold">{profile.name}</strong>
+                            <time className="text-[11px] text-muted-foreground">
+                              {eventTime(item.event.created_at)}
+                            </time>
+                          </div>
+                          <div className="mt-2">
+                            <MessageContent
+                              content={item.event.content || t("inbox.noDetails")}
+                              relayUrl={relayUrl}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             </div>
-            <button
-              aria-label={selected.unread ? t("inbox.markRead") : t("inbox.markUnread")}
-              className="buzz-icon-button shrink-0"
-              title={selected.unread ? t("inbox.markRead") : t("inbox.markUnread")}
-              type="button"
-              onClick={() =>
-                selected.unread ? onMarkRead(selected.id) : onMarkUnread(selected.id)
-              }
-            >
-              {selected.unread ? (
-                <CheckCheck className="h-4 w-4" />
-              ) : (
-                <RotateCcw className="h-4 w-4" />
-              )}
-            </button>
-          </header>
-          <div className="min-h-32 overflow-hidden py-6 text-sm">
-            <MessageContent
-              content={selected.event.content || t("inbox.noDetails")}
-              relayUrl={relayUrl}
-            />
-          </div>
-          <footer className="flex flex-wrap items-center justify-end gap-2 border-t pt-4">
-            {selected.category === "needs_action" ? (
-              <>
-                <button
-                  className="h-8 rounded-md border px-3 text-xs font-medium hover:bg-foreground/5 disabled:opacity-50"
-                  disabled={approvalPending !== null}
-                  type="button"
-                  onClick={() => void onRespondToApproval(selected, false)}
-                >
-                  {t("inbox.deny")}
-                </button>
-                <button
-                  className="h-8 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-50"
-                  disabled={approvalPending !== null}
-                  type="button"
-                  onClick={() => void onRespondToApproval(selected, true)}
-                >
-                  {approvalPending === selected.id ? (
-                    <LoaderCircle className="mr-2 inline h-3.5 w-3.5 animate-spin" />
-                  ) : null}
-                  {t("inbox.approve")}
-                </button>
-              </>
-            ) : null}
-            <button
-              className="inline-flex h-8 items-center gap-2 rounded-md border px-3 text-xs font-medium hover:bg-foreground/5 disabled:opacity-50"
-              disabled={!selected.channelId}
-              type="button"
-              onClick={() => onOpenConversation(selected)}
-            >
-              {t("inbox.openConversation")}
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
-          </footer>
-        </article>
-      ) : (
-        <>
-          <div className="flex flex-wrap items-center gap-2 border-b p-3">
-            <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-xs text-muted-foreground hover:bg-foreground/5">
-              <input
-                checked={unreadOnly}
-                className="h-3.5 w-3.5 shrink-0 accent-primary"
-                type="checkbox"
-                onChange={(event) => setUnreadOnly(event.target.checked)}
-              />
-              <span className="truncate">{t("inbox.unreadOnly")}</span>
-            </label>
-            <select
-              aria-label={t("inbox.filter")}
-              className="h-8 min-w-24 rounded-md border bg-background px-2 text-xs"
-              value={filter}
-              onChange={(event) => setFilter(event.target.value as InboxFilter)}
-            >
-              <option value="all">{t("inbox.all")}</option>
-              <option value="mention">{t("inbox.mentions")}</option>
-              <option value="dm">{t("inbox.directMessages")}</option>
-              <option value="thread">{t("inbox.threadReplies")}</option>
-              <option value="needs_action">{t("inbox.needsAction")}</option>
-            </select>
-          </div>
-          <div className="buzz-scrollbar min-h-0 flex-1 overflow-y-auto">
-            {visibleItems.map((item) => {
-              const profile = profiles[item.event.pubkey.toLowerCase()] ?? {
-                pubkey: item.event.pubkey,
-                name: truncatePubkey(item.event.pubkey),
-                about: "",
-                picture: null,
-                isAgent: false,
-              };
-              const channel = item.channelId
-                ? channels.find((candidate) => candidate.id === item.channelId)
-                : null;
-              return (
-                <button
-                  key={item.id}
-                  className="group flex w-full gap-3 border-b px-3 py-3 text-left hover:bg-foreground/5"
-                  type="button"
-                  onClick={() => {
-                    setSelectedId(item.id);
-                    onMarkRead(item.id);
-                  }}
-                >
-                  <Avatar profile={profile} relayUrl={relayUrl} size={34} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span
-                        className={`min-w-0 flex-1 truncate text-sm ${item.unread ? "font-semibold" : "font-medium"}`}
-                      >
-                        {profile.name}
-                      </span>
-                      {item.unread ? (
-                        <span
-                          aria-label={t("inbox.unread")}
-                          className="h-2 w-2 shrink-0 rounded-full bg-primary"
-                          role="img"
-                        />
-                      ) : null}
-                      <span className="shrink-0 text-[10px] text-muted-foreground">
-                        {relativeTime(item.event.created_at)}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
-                      <span>{categoryLabel(item.category)}</span>
-                      {channel ? (
-                        <>
-                          <span>·</span>
-                          <span className="truncate">#{channel.name}</span>
-                        </>
-                      ) : null}
-                    </div>
-                    <p
-                      className={`mt-1.5 line-clamp-2 text-xs leading-4 ${item.unread ? "text-foreground" : "text-muted-foreground"}`}
+
+            <footer className="shrink-0 px-4 pb-4 sm:px-6">
+              <div className="mx-auto max-w-[900px]">
+                {selected.category === "needs_action" ? (
+                  <div className="mb-3 flex justify-end gap-2">
+                    <button
+                      className="h-8 rounded-md border px-3 text-xs font-medium hover:bg-foreground/5 disabled:opacity-50"
+                      disabled={approvalPending !== null}
+                      type="button"
+                      onClick={() => void onRespondToApproval(selected, false)}
                     >
-                      {inboxPreview(item.event) || t("inbox.noDetails")}
-                    </p>
+                      {t("inbox.deny")}
+                    </button>
+                    <button
+                      className="h-8 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                      disabled={approvalPending !== null}
+                      type="button"
+                      onClick={() => void onRespondToApproval(selected, true)}
+                    >
+                      {approvalPending === selected.id ? (
+                        <LoaderCircle className="mr-2 inline h-3.5 w-3.5 animate-spin" />
+                      ) : null}
+                      {t("inbox.approve")}
+                    </button>
                   </div>
+                ) : null}
+                <button
+                  aria-label={t("inbox.openConversation")}
+                  className="flex min-h-[72px] w-full items-center gap-3 rounded-xl border bg-background/35 px-4 text-left text-sm text-muted-foreground shadow-sm hover:bg-background/55 disabled:opacity-50"
+                  disabled={!selected.channelId}
+                  type="button"
+                  onClick={() => onOpenConversation(selected)}
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {t("inbox.replyIn", {
+                      target:
+                        selectedChannel?.type === "dm"
+                          ? selectedProfile.name
+                          : `#${selectedChannel?.name ?? t("common.channel")}`,
+                    })}
+                  </span>
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground/15 text-foreground">
+                    <ArrowUp className="h-4 w-4" />
+                  </span>
                 </button>
-              );
-            })}
-            {!loading && !visibleItems.length ? (
-              <div className="px-5 py-14 text-center">
-                <Mail className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                <p className="mt-3 text-sm text-muted-foreground">{t("inbox.empty")}</p>
               </div>
-            ) : null}
-            {loading && !visibleItems.length ? (
-              <div className="flex items-center justify-center px-5 py-14 text-sm text-muted-foreground">
-                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                {t("inbox.loading")}
-              </div>
-            ) : null}
+            </footer>
+          </>
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center px-6 text-center text-muted-foreground">
+            <Mail className="h-9 w-9 opacity-45" />
+            <p className="mt-3 text-sm">{t("inbox.empty")}</p>
           </div>
-        </>
-      )}
+        )}
+      </section>
     </div>
   );
 }

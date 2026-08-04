@@ -316,6 +316,8 @@ function Workspace({
             ) : (
               <ReposPanel
                 demo={demo}
+                profiles={state.profiles}
+                relayUrl={config.relayUrl}
                 onClose={() => setActiveTool(null)}
                 onOpenChannel={selectChannel}
               />
