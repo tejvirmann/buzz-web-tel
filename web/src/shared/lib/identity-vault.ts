@@ -2,9 +2,9 @@ import { t } from "@/shared/i18n";
 
 const DATABASE_NAME = "buzz-web-identity";
 const STORE_NAME = "vault";
-const RECORD_KEY = "primary";
+const LEGACY_RECORD_KEY = "primary";
 const ITERATIONS = 310_000;
-const AAD = new TextEncoder().encode("buzz-web-identity-v1");
+const LEGACY_AAD = new TextEncoder().encode("buzz-web-identity-v1");
 
 function asArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(bytes.byteLength);
@@ -18,11 +18,17 @@ export type VaultMetadata = {
 };
 
 type VaultRecord = VaultMetadata & {
-  version: 1;
+  version: 1 | 2;
   salt: string;
   iv: string;
   ciphertext: string;
 };
+
+function aadForRecord(record: Pick<VaultRecord, "version" | "pubkey">): Uint8Array {
+  return record.version === 1
+    ? LEGACY_AAD
+    : new TextEncoder().encode(`buzz-web-identity-v2:${record.pubkey.toLowerCase()}`);
+}
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -56,10 +62,31 @@ async function withStore<T>(
   return new Promise((resolve, reject) => {
     const transaction = database.transaction(STORE_NAME, mode);
     const request = operation(transaction.objectStore(STORE_NAME));
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error(t("error.vaultOperation")));
-    transaction.oncomplete = () => database.close();
-    transaction.onerror = () => reject(transaction.error ?? new Error(t("error.vaultTransaction")));
+    let result: T;
+    let requestCompleted = false;
+    let settled = false;
+    const rejectOnce = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      database.close();
+      reject(error);
+    };
+    request.onsuccess = () => {
+      result = request.result;
+      requestCompleted = true;
+    };
+    request.onerror = () => rejectOnce(request.error ?? new Error(t("error.vaultOperation")));
+    transaction.oncomplete = () => {
+      if (settled) return;
+      settled = true;
+      database.close();
+      if (requestCompleted) resolve(result);
+      else reject(new Error(t("error.vaultOperation")));
+    };
+    transaction.onerror = () =>
+      rejectOnce(transaction.error ?? new Error(t("error.vaultTransaction")));
+    transaction.onabort = () =>
+      rejectOnce(transaction.error ?? new Error(t("error.vaultTransaction")));
   });
 }
 
@@ -80,11 +107,34 @@ async function deriveKey(passphrase: string, salt: Uint8Array): Promise<CryptoKe
   );
 }
 
-export async function readVaultMetadata(): Promise<VaultMetadata | null> {
+async function migrateLegacyRecord(): Promise<void> {
   const record = await withStore<VaultRecord | undefined>("readonly", (store) =>
-    store.get(RECORD_KEY),
+    store.get(LEGACY_RECORD_KEY),
   );
-  return record ? { pubkey: record.pubkey, createdAt: record.createdAt } : null;
+  if (!record || !/^[0-9a-f]{64}$/i.test(record.pubkey)) return;
+  const existing = await withStore<VaultRecord | undefined>("readonly", (store) =>
+    store.get(record.pubkey.toLowerCase()),
+  );
+  if (!existing) {
+    await withStore("readwrite", (store) => store.put(record, record.pubkey.toLowerCase()));
+  }
+  await withStore("readwrite", (store) => store.delete(LEGACY_RECORD_KEY));
+}
+
+export async function listVaultMetadata(): Promise<VaultMetadata[]> {
+  await migrateLegacyRecord();
+  const records = await withStore<VaultRecord[]>("readonly", (store) => store.getAll());
+  return records
+    .filter((record) => /^[0-9a-f]{64}$/i.test(record.pubkey))
+    .map((record) => ({ pubkey: record.pubkey.toLowerCase(), createdAt: record.createdAt }))
+    .sort((left, right) => right.createdAt - left.createdAt);
+}
+
+export async function readVaultMetadata(pubkey?: string): Promise<VaultMetadata | null> {
+  const records = await listVaultMetadata();
+  return pubkey
+    ? (records.find((record) => record.pubkey === pubkey.toLowerCase()) ?? null)
+    : (records[0] ?? null);
 }
 
 export async function saveSecretKey(
@@ -96,25 +146,34 @@ export async function saveSecretKey(
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveKey(passphrase, salt);
+  const normalizedPubkey = pubkey.toLowerCase();
+  const recordVersion = 2 as const;
   const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: asArrayBuffer(iv), additionalData: asArrayBuffer(AAD) },
+    {
+      name: "AES-GCM",
+      iv: asArrayBuffer(iv),
+      additionalData: asArrayBuffer(
+        aadForRecord({ version: recordVersion, pubkey: normalizedPubkey }),
+      ),
+    },
     key,
     asArrayBuffer(secretKey),
   );
   const record: VaultRecord = {
-    version: 1,
-    pubkey,
+    version: recordVersion,
+    pubkey: normalizedPubkey,
     createdAt: Date.now(),
     salt: bytesToBase64(salt),
     iv: bytesToBase64(iv),
     ciphertext: bytesToBase64(new Uint8Array(ciphertext)),
   };
-  await withStore("readwrite", (store) => store.put(record, RECORD_KEY));
+  await withStore("readwrite", (store) => store.put(record, normalizedPubkey));
 }
 
-export async function unlockSecretKey(passphrase: string): Promise<Uint8Array> {
+export async function unlockSecretKey(pubkey: string, passphrase: string): Promise<Uint8Array> {
+  await migrateLegacyRecord();
   const record = await withStore<VaultRecord | undefined>("readonly", (store) =>
-    store.get(RECORD_KEY),
+    store.get(pubkey.toLowerCase()),
   );
   if (!record) throw new Error(t("error.vaultMissing"));
   try {
@@ -122,7 +181,11 @@ export async function unlockSecretKey(passphrase: string): Promise<Uint8Array> {
     const iv = base64ToBytes(record.iv);
     const key = await deriveKey(passphrase, salt);
     const plaintext = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: asArrayBuffer(iv), additionalData: asArrayBuffer(AAD) },
+      {
+        name: "AES-GCM",
+        iv: asArrayBuffer(iv),
+        additionalData: asArrayBuffer(aadForRecord(record)),
+      },
       key,
       asArrayBuffer(base64ToBytes(record.ciphertext)),
     );
@@ -132,6 +195,6 @@ export async function unlockSecretKey(passphrase: string): Promise<Uint8Array> {
   }
 }
 
-export async function deleteVault(): Promise<void> {
-  await withStore("readwrite", (store) => store.delete(RECORD_KEY));
+export async function deleteVault(pubkey: string): Promise<void> {
+  await withStore("readwrite", (store) => store.delete(pubkey.toLowerCase()));
 }

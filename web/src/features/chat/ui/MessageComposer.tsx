@@ -12,6 +12,11 @@ import {
   type MentionQuery,
 } from "@/features/chat/lib/composer-mentions";
 import {
+  clearConversationDraft,
+  readConversationDraft,
+  writeConversationDraft,
+} from "@/features/chat/lib/conversation-drafts";
+import {
   type ComposerMentionCandidate,
   MentionAutocomplete,
 } from "@/features/chat/ui/MentionAutocomplete";
@@ -23,6 +28,7 @@ export function MessageComposer({
   placeholder,
   disabled,
   compact = false,
+  draftKey,
   insertMention,
   members = [],
   profiles = {},
@@ -36,6 +42,7 @@ export function MessageComposer({
   placeholder: string;
   disabled?: boolean;
   compact?: boolean;
+  draftKey?: string;
   insertMention?: string | null;
   members?: ChannelMember[];
   profiles?: Record<string, UserProfile>;
@@ -45,13 +52,22 @@ export function MessageComposer({
   onTyping: () => void;
   onSend: (content: string, attachments: AttachmentDescriptor[]) => Promise<void>;
 }) {
-  const [content, setContent] = useState("");
-  const [attachments, setAttachments] = useState<AttachmentDescriptor[]>([]);
+  const initialDraft = useMemo(
+    () => (draftKey ? readConversationDraft(draftKey) : { content: "", attachments: [] }),
+    [draftKey],
+  );
+  const [content, setContent] = useState(initialDraft.content);
+  const [attachments, setAttachments] = useState<AttachmentDescriptor[]>(initialDraft.attachments);
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mentionQuery, setMentionQuery] = useState<MentionQuery | null>(null);
   const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
+  const latestDraft = useRef({
+    content: initialDraft.content,
+    attachments: initialDraft.attachments,
+  });
+  latestDraft.current = { content, attachments };
   const mentionListId = useId();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -79,6 +95,20 @@ export function MessageComposer({
       })
       .slice(0, 12);
   }, [mentionCandidates, mentionQuery]);
+
+  useEffect(() => {
+    if (!draftKey) return;
+    const timer = window.setTimeout(
+      () => writeConversationDraft(draftKey, { content, attachments }),
+      250,
+    );
+    return () => window.clearTimeout(timer);
+  }, [attachments, content, draftKey]);
+
+  useEffect(() => {
+    if (!draftKey) return;
+    return () => writeConversationDraft(draftKey, latestDraft.current);
+  }, [draftKey]);
 
   const updateMentionQuery = (value: string, cursorPosition: number) => {
     const next = detectMentionQuery(
@@ -126,6 +156,8 @@ export function MessageComposer({
     setError(null);
     try {
       await onSend(contentWithAttachments(content, attachments), attachments);
+      latestDraft.current = { content: "", attachments: [] };
+      if (draftKey) clearConversationDraft(draftKey);
       setContent("");
       setAttachments([]);
       setMentionQuery(null);
@@ -163,7 +195,7 @@ export function MessageComposer({
               key={attachment.sha256}
               className="inline-flex max-w-56 items-center gap-1.5 rounded bg-foreground/7 px-2 py-1 text-xs"
             >
-              <span className="truncate">{attachment.filename || "attachment"}</span>
+              <span className="truncate">{attachment.filename || t("message.attachment")}</span>
               <button
                 aria-label={t("message.removeAttachment")}
                 className="rounded p-0.5 hover:bg-foreground/10"

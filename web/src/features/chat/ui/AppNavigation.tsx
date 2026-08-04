@@ -1,5 +1,7 @@
 import {
+  BellOff,
   Bot,
+  Compass,
   GitBranch,
   Hash,
   Inbox,
@@ -9,25 +11,34 @@ import {
   Plus,
   Search,
   Settings,
+  Star,
   X,
 } from "lucide-react";
 import buzzAppIcon from "@/assets/app-icon@3x.png";
 import { channelDisplayName } from "@/features/chat/lib/chat-model";
 import type { BuzzChannel, UserProfile } from "@/features/chat/lib/chat-types";
+import { connectionStateLabel } from "@/features/chat/lib/connection-state";
 import { Avatar } from "@/features/chat/ui/Avatar";
 import { LeftPanelResizeHandle } from "@/features/chat/ui/LeftPanelSizing";
 import type { WorkspaceTool } from "@/features/chat/ui/WorkspaceToolPanel";
+import type { RelayConnectionState } from "@/shared/api/nostr-types";
 import type { RelayFeatureState } from "@/shared/features/relay-features";
 import { t } from "@/shared/i18n";
 
-function ConnectionDot({ state }: { state: string }) {
+function ConnectionDot({ state }: { state: RelayConnectionState }) {
   const color =
     state === "connected"
       ? "bg-emerald-500"
       : state === "connecting" || state === "reconnecting"
         ? "bg-amber-500"
         : "bg-rose-500";
-  return <span className={`h-2 w-2 rounded-full ${color}`} aria-label={state} role="img" />;
+  return (
+    <span
+      className={`h-2 w-2 rounded-full ${color}`}
+      aria-label={connectionStateLabel(state)}
+      role="img"
+    />
+  );
 }
 
 function navRow(active: boolean, unread = false): string {
@@ -65,12 +76,15 @@ export function AppNavigation({
   activeTool,
   inboxUnreadCount,
   channelUnreadCounts,
+  starredChannelIds,
+  mutedChannelIds,
   features,
   maximumWidth,
   panelWidth,
   onCloseMobile,
   onSelectChannel,
   onCreateChannel,
+  onBrowseChannels,
   onNewDm,
   onSearch,
   onSettings,
@@ -86,7 +100,7 @@ export function AppNavigation({
   profiles: Record<string, UserProfile>;
   presence: Record<string, "online" | "away" | "offline">;
   currentPubkey: string;
-  connectionState: string;
+  connectionState: RelayConnectionState;
   mobileOpen: boolean;
   canCreateChannel: boolean;
   canManageMembers: boolean;
@@ -99,6 +113,7 @@ export function AppNavigation({
   onCloseMobile: () => void;
   onSelectChannel: (id: string) => void;
   onCreateChannel: () => void;
+  onBrowseChannels: () => void;
   onNewDm: () => void;
   onSearch: () => void;
   onSettings: () => void;
@@ -106,6 +121,8 @@ export function AppNavigation({
   onShowMessages: () => void;
   onToggleTool: (tool: WorkspaceTool) => void;
   onResize: (width: number) => void;
+  starredChannelIds: ReadonlySet<string>;
+  mutedChannelIds: ReadonlySet<string>;
 }) {
   const profile = profiles[currentPubkey] ?? {
     pubkey: currentPubkey,
@@ -114,9 +131,15 @@ export function AppNavigation({
     picture: null,
     isAgent: false,
   };
-  const streamChannels = channels.filter((channel) => channel.type === "stream");
-  const forumChannels = channels.filter((channel) => channel.type === "forum");
-  const directMessages = channels.filter((channel) => channel.type === "dm");
+  const sortChannels = (items: BuzzChannel[]) =>
+    [...items].sort(
+      (left, right) =>
+        Number(starredChannelIds.has(right.id)) - Number(starredChannelIds.has(left.id)) ||
+        left.name.localeCompare(right.name),
+    );
+  const streamChannels = sortChannels(channels.filter((channel) => channel.type === "stream"));
+  const forumChannels = sortChannels(channels.filter((channel) => channel.type === "forum"));
+  const directMessages = sortChannels(channels.filter((channel) => channel.type === "dm"));
   const select = (id: string) => {
     onSelectChannel(id);
     onCloseMobile();
@@ -227,20 +250,31 @@ export function AppNavigation({
               <span className="text-[11px] font-medium text-muted-foreground">
                 {t("nav.channels")}
               </span>
-              <button
-                aria-label={t("dialog.createChannel")}
-                className="buzz-icon-button h-6 w-6 flex-none"
-                disabled={!canCreateChannel}
-                title={canCreateChannel ? t("dialog.createChannel") : t("nav.onlyAdminCreate")}
-                type="button"
-                onClick={onCreateChannel}
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
+              <span className="flex items-center gap-0.5">
+                <button
+                  aria-label={t("channel.browserTitle")}
+                  className="buzz-icon-button h-6 w-6 flex-none"
+                  title={t("channel.browserTitle")}
+                  type="button"
+                  onClick={onBrowseChannels}
+                >
+                  <Compass className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  aria-label={t("dialog.createChannel")}
+                  className="buzz-icon-button h-6 w-6 flex-none"
+                  disabled={!canCreateChannel}
+                  title={canCreateChannel ? t("dialog.createChannel") : t("nav.onlyAdminCreate")}
+                  type="button"
+                  onClick={onCreateChannel}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </span>
             </div>
             {streamChannels.map((channel) => {
               const selected = activeTool === null && selectedChannelId === channel.id;
-              const unreadCount = selected ? 0 : (channelUnreadCounts[channel.id] ?? 0);
+              const unreadCount = channelUnreadCounts[channel.id] ?? 0;
               return (
                 <button
                   key={channel.id}
@@ -260,6 +294,12 @@ export function AppNavigation({
                     <Hash className="h-4 w-4 shrink-0 text-muted-foreground" />
                   )}
                   <span className="min-w-0 flex-1 truncate">{channel.name}</span>
+                  {starredChannelIds.has(channel.id) ? (
+                    <Star className="h-3 w-3 shrink-0 fill-current text-primary" />
+                  ) : null}
+                  {mutedChannelIds.has(channel.id) ? (
+                    <BellOff className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  ) : null}
                   {unreadCount > 0 ? <ChannelUnreadDot channelId={channel.id} /> : null}
                 </button>
               );
@@ -273,7 +313,7 @@ export function AppNavigation({
               </div>
               {forumChannels.map((channel) => {
                 const selected = activeTool === null && selectedChannelId === channel.id;
-                const unreadCount = selected ? 0 : (channelUnreadCounts[channel.id] ?? 0);
+                const unreadCount = channelUnreadCounts[channel.id] ?? 0;
                 return (
                   <button
                     key={channel.id}
@@ -289,6 +329,12 @@ export function AppNavigation({
                   >
                     <MessagesSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate">{channel.name}</span>
+                    {starredChannelIds.has(channel.id) ? (
+                      <Star className="h-3 w-3 shrink-0 fill-current text-primary" />
+                    ) : null}
+                    {mutedChannelIds.has(channel.id) ? (
+                      <BellOff className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    ) : null}
                     {unreadCount > 0 ? <ChannelUnreadDot channelId={channel.id} /> : null}
                   </button>
                 );
@@ -316,7 +362,7 @@ export function AppNavigation({
               const other = channel.participantPubkeys.find((value) => value !== currentPubkey);
               const dmProfile = other ? profiles[other] : null;
               const selected = activeTool === null && selectedChannelId === channel.id;
-              const unreadCount = selected ? 0 : (channelUnreadCounts[channel.id] ?? 0);
+              const unreadCount = channelUnreadCounts[channel.id] ?? 0;
               return (
                 <button
                   key={channel.id}
@@ -341,6 +387,12 @@ export function AppNavigation({
                     <MessageCircle className="h-4 w-4 shrink-0 text-muted-foreground" />
                   )}
                   <span className="min-w-0 flex-1 truncate">{name}</span>
+                  {starredChannelIds.has(channel.id) ? (
+                    <Star className="h-3 w-3 shrink-0 fill-current text-primary" />
+                  ) : null}
+                  {mutedChannelIds.has(channel.id) ? (
+                    <BellOff className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  ) : null}
                   {unreadCount > 0 ? <ChannelUnreadDot channelId={channel.id} /> : null}
                 </button>
               );

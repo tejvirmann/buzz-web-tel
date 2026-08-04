@@ -1,7 +1,9 @@
-import { Download, ImageOff, LoaderCircle } from "lucide-react";
+import { Bot, Download, ImageOff, LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
+import remarkMentions from "@/features/chat/lib/remark-mentions";
 import { authenticatedMediaObjectUrl } from "@/shared/api/media-client";
 import { relayHttpOrigin } from "@/shared/config/runtime-config";
 import { t } from "@/shared/i18n";
@@ -108,19 +110,60 @@ function displayContent(content: string): string {
   }
 }
 
-export function MessageContent({ content, relayUrl }: { content: string; relayUrl: string }) {
+export type MessageMention = {
+  pubkey: string;
+  name: string;
+  isAgent: boolean;
+};
+
+export function MessageContent({
+  content,
+  relayUrl,
+  mentions = [],
+}: {
+  content: string;
+  relayUrl: string;
+  mentions?: readonly MessageMention[];
+}) {
+  const mentionsByName = new Map(
+    mentions.map((mention) => [mention.name.trim().toLocaleLowerCase(), mention]),
+  );
+  const mentionNames = [...mentionsByName.values()].map((mention) => mention.name);
+  const components = {
+    img: ({ src, alt }) => <ProtectedImage src={src} alt={alt} relayUrl={relayUrl} />,
+    a: ({ href, children }) => (
+      <ProtectedLink href={href} relayUrl={relayUrl}>
+        {children}
+      </ProtectedLink>
+    ),
+    mention: ({ children }: { children?: React.ReactNode }) => {
+      const text = String(children ?? "");
+      const label = text.replace(/^@/, "");
+      const mention = mentionsByName.get(label.trim().toLocaleLowerCase());
+      if (!mention) return <>{children}</>;
+      return (
+        <span
+          className="buzz-message-mention"
+          data-mention=""
+          data-mention-agent={mention.isAgent || undefined}
+          data-mention-pubkey={mention.pubkey}
+        >
+          {mention.isAgent ? (
+            <Bot aria-hidden="true" className="buzz-message-mention-icon" />
+          ) : (
+            <span className="buzz-message-mention-prefix">@</span>
+          )}
+          {label}
+        </span>
+      );
+    },
+  } as Components;
+
   return (
     <div className="buzz-message-markdown">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          img: ({ src, alt }) => <ProtectedImage src={src} alt={alt} relayUrl={relayUrl} />,
-          a: ({ href, children }) => (
-            <ProtectedLink href={href} relayUrl={relayUrl}>
-              {children}
-            </ProtectedLink>
-          ),
-        }}
+        remarkPlugins={[remarkGfm, remarkBreaks, [remarkMentions, { mentionNames }]]}
+        components={components}
       >
         {displayContent(content)}
       </ReactMarkdown>

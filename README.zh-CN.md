@@ -14,10 +14,10 @@ Buzz Web 是一个连接 [Buzz](https://github.com/block/buzz) Relay 的独立�
 
 | 功能域 | 当前可用 | 主要限制 |
 | --- | --- | --- |
-| 身份 | NIP-07、加密的本地 `nsec` 保险库 | 暂不支持创建身份、备份和多身份切换 |
-| 消息 | 频道、私聊、线程、Reaction、@ 提及、搜索、上传、输入状态、在线状态 | 暂无编辑/删除、草稿和跨设备已读同步 |
-| Inbox | 提及、私聊、线程回复、Workflow 审批、筛选和未读状态 | 已读状态仅保存在当前浏览器 |
-| 成员 | 添加 Relay 成员、生成有时效和次数限制的邀请链接 | 角色修改、移除成员和完整成员目录尚未完成 |
+| 身份 | NIP-07、加密多身份保险库、创建身份、编辑 Profile、`ncryptsec` 备份与恢复 | 本地私钥解锁后仍存在于页面内存，共享设备优先使用 NIP-07 |
+| 消息 | 频道、私聊、线程、Reaction、@ 提及、搜索、上传、编辑/删除、隔离草稿、输入状态、在线状态和 NIP-RS 已读状态 | 写操作受 Relay 权限控制；加密同步已读状态要求签名器支持 NIP-44 |
+| Inbox | 提及、私聊、线程回复、Workflow 审批、筛选和 Relay 同步的未读状态 | NIP-RS 前沿只能递增，因此手动标记未读仍保存在当前设备 |
+| 成员 | 频道发现、收藏、静音/归档、成员目录、角色修改、移除成员、Relay 成员接入和限时邀请 | 成员及管理操作最终受 Relay 权限控制 |
 | Agents | 发现远程 Agent、查看状态、管理频道权限、发起私聊、按配置启动服务 | 本机 Agent 创建和完整运行时配置仍属于桌面端能力 |
 | Projects | 浏览 NIP-34 仓库公告、Refs、目录、文件、提交和 Clone 地址 | 暂不支持发布、Issue、PR、Review 和 Merge |
 
@@ -47,8 +47,8 @@ npm ci
 npm run dev
 ```
 
-打开 `http://localhost:5173`。默认配置连接同源 Relay；本地开发需要连接其他 Relay 时，
-修改 `web/public/config.json`：
+打开 `http://localhost:5173`。开发模板默认连接 `ws://localhost:3000`；Relay 使用其他地址时，
+必须在 `web/public/config.json` 中明确设置 `relayUrl`：
 
 ```json
 {

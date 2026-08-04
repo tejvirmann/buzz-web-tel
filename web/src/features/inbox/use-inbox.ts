@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { tagValue } from "@/features/chat/lib/chat-model";
+import { tagValue, threadReference } from "@/features/chat/lib/chat-model";
 import type { BuzzChannel } from "@/features/chat/lib/chat-types";
-import { buildInboxItems, INBOX_EVENT_KINDS } from "@/features/inbox/lib/inbox-model";
+import {
+  buildInboxItems,
+  INBOX_EVENT_KINDS,
+  threadNotificationRootIds,
+  threadRootIds,
+} from "@/features/inbox/lib/inbox-model";
 import type { NostrEvent } from "@/shared/api/nostr-types";
 import type { BuzzRelayClient } from "@/shared/api/relay-client";
 import type { ConfiguredAgent } from "@/shared/config/runtime-config";
@@ -13,8 +18,12 @@ function mergeEvents(current: NostrEvent[], incoming: NostrEvent[]): NostrEvent[
   return [...byId.values()];
 }
 
-function readStateKey(relayUrl: string, pubkey: string): string {
+function legacyReadStateKey(relayUrl: string, pubkey: string): string {
   return `buzz:web:inbox-read:${encodeURIComponent(relayUrl)}:${pubkey.toLowerCase()}`;
+}
+
+function forcedUnreadStateKey(relayUrl: string, pubkey: string): string {
+  return `buzz:web:inbox-forced-unread:v1:${encodeURIComponent(relayUrl)}:${pubkey.toLowerCase()}`;
 }
 
 function loadReadIds(key: string): Set<string> {
@@ -26,6 +35,28 @@ function loadReadIds(key: string): Set<string> {
   } catch {
     return new Set();
   }
+}
+
+export function topLevelChannelEvents(
+  events: readonly NostrEvent[],
+  channelId: string,
+): NostrEvent[] {
+  return events.filter(
+    (event) => tagValue(event, "h") === channelId && !threadReference(event).rootId,
+  );
+}
+
+export function eventReadFrontier(
+  event: NostrEvent,
+  readContexts: Readonly<Record<string, number>>,
+  threadRootId: string | null,
+): number {
+  const channelId = tagValue(event, "h");
+  return Math.max(
+    channelId ? (readContexts[channelId] ?? 0) : 0,
+    threadRootId ? (readContexts[`thread:${threadRootId}`] ?? 0) : 0,
+    readContexts[`msg:${event.id}`] ?? 0,
+  );
 }
 
 function demoInboxEvents(
@@ -66,7 +97,7 @@ function demoInboxEvents(
     event("c", currentPubkey, 9, "Please post the verification result here.", now - 240, [
       ["h", general],
     ]),
-    event("3", agent, 9, "Verification is complete and the result is attached.", now - 180, [
+    event("3", agent, 9, "Verification is complete and the result is attached.", now - 40, [
       ["h", general],
       ["e", rootId, "", "reply"],
     ]),
@@ -86,6 +117,8 @@ export function useInbox({
   configuredAgents,
   channels,
   ensureProfiles,
+  readContexts,
+  markContextRead,
 }: {
   client: BuzzRelayClient | null;
   demo: boolean;
@@ -94,15 +127,24 @@ export function useInbox({
   configuredAgents: readonly ConfiguredAgent[];
   channels: readonly BuzzChannel[];
   ensureProfiles: (pubkeys: string[]) => Promise<void>;
+  readContexts: Readonly<Record<string, number>>;
+  markContextRead: (contextId: string, timestamp: number) => void;
 }) {
-  const storageKey = useMemo(
-    () => readStateKey(relayUrl, currentPubkey),
+  const legacyStorageKey = useMemo(
+    () => legacyReadStateKey(relayUrl, currentPubkey),
+    [currentPubkey, relayUrl],
+  );
+  const forcedStorageKey = useMemo(
+    () => forcedUnreadStateKey(relayUrl, currentPubkey),
     [currentPubkey, relayUrl],
   );
   const [events, setEvents] = useState<NostrEvent[]>(() =>
     demo ? demoInboxEvents(channels, currentPubkey, configuredAgents) : [],
   );
-  const [readIds, setReadIds] = useState<Set<string>>(() => loadReadIds(storageKey));
+  const [legacyReadIds] = useState<Set<string>>(() => loadReadIds(legacyStorageKey));
+  const [forcedUnreadIds, setForcedUnreadIds] = useState<Set<string>>(() =>
+    loadReadIds(forcedStorageKey),
+  );
   const [loading, setLoading] = useState(!demo);
   const [error, setError] = useState<string | null>(null);
   const [approvalPending, setApprovalPending] = useState<string | null>(null);
@@ -110,6 +152,11 @@ export function useInbox({
     .map((channel) => channel.id)
     .sort()
     .join(",");
+  const rootsByEvent = useMemo(() => threadRootIds(events), [events]);
+  const notificationRoots = useMemo(
+    () => threadNotificationRootIds(events, currentPubkey, rootsByEvent),
+    [currentPubkey, events, rootsByEvent],
+  );
 
   useEffect(() => {
     if (demo && channelIdsKey) {
@@ -119,11 +166,29 @@ export function useInbox({
 
   useEffect(() => {
     try {
-      localStorage.setItem(storageKey, JSON.stringify([...readIds].slice(-2_000)));
+      localStorage.setItem(forcedStorageKey, JSON.stringify([...forcedUnreadIds].slice(-2_000)));
     } catch {
       // Private browsing policies may disable local persistence.
     }
-  }, [readIds, storageKey]);
+  }, [forcedStorageKey, forcedUnreadIds]);
+
+  useEffect(() => {
+    if (!legacyReadIds.size || !events.length) return;
+    let migrated = false;
+    for (const event of events) {
+      if (!legacyReadIds.has(event.id)) continue;
+      markContextRead(`msg:${event.id}`, event.created_at);
+      migrated = true;
+    }
+    if (migrated) {
+      try {
+        localStorage.removeItem(legacyStorageKey);
+      } catch {
+        // A storage policy can prevent cleanup; the grow-only merge remains idempotent.
+      }
+      legacyReadIds.clear();
+    }
+  }, [events, legacyReadIds, legacyStorageKey, markContextRead]);
 
   const refresh = useCallback(async () => {
     if (!client || demo) return;
@@ -185,34 +250,120 @@ export function useInbox({
     };
   }, [channelIdsKey, client, currentPubkey, demo, ensureProfiles, refresh]);
 
+  const readIds = useMemo(() => {
+    const result = new Set<string>();
+    for (const event of events) {
+      if (
+        !forcedUnreadIds.has(event.id) &&
+        eventReadFrontier(event, readContexts, rootsByEvent.get(event.id) ?? null) >=
+          event.created_at
+      ) {
+        result.add(event.id);
+      }
+    }
+    return result;
+  }, [events, forcedUnreadIds, readContexts, rootsByEvent]);
   const items = useMemo(
     () => buildInboxItems({ events, channels, currentPubkey, readIds }),
     [channels, currentPubkey, events, readIds],
   );
   const unreadCount = items.filter((item) => item.unread).length;
-  const markRead = useCallback((id: string) => {
-    setReadIds((current) => new Set([...current, id]));
-  }, []);
+  const markRead = useCallback(
+    (id: string) => {
+      const event = events.find((candidate) => candidate.id === id);
+      if (event) markContextRead(`msg:${id}`, event.created_at);
+      setForcedUnreadIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+    },
+    [events, markContextRead],
+  );
   const markUnread = useCallback((id: string) => {
-    setReadIds((current) => {
-      const next = new Set(current);
-      next.delete(id);
-      return next;
-    });
+    setForcedUnreadIds((current) => new Set([...current, id]));
   }, []);
   const markAllRead = useCallback(() => {
-    setReadIds((current) => new Set([...current, ...items.map((item) => item.id)]));
-  }, [items]);
+    const latestByChannel = new Map<string, number>();
+    const latestByThread = new Map<string, number>();
+    for (const item of items) {
+      if (item.threadRootId) {
+        latestByThread.set(
+          item.threadRootId,
+          Math.max(latestByThread.get(item.threadRootId) ?? 0, item.event.created_at),
+        );
+      } else if (item.channelId) {
+        latestByChannel.set(
+          item.channelId,
+          Math.max(latestByChannel.get(item.channelId) ?? 0, item.event.created_at),
+        );
+      } else {
+        markContextRead(`msg:${item.id}`, item.event.created_at);
+      }
+    }
+    for (const [channelId, timestamp] of latestByChannel) markContextRead(channelId, timestamp);
+    for (const [rootId, timestamp] of latestByThread) {
+      markContextRead(`thread:${rootId}`, timestamp);
+    }
+    setForcedUnreadIds(new Set());
+  }, [items, markContextRead]);
   const markChannelRead = useCallback(
-    (channelId: string) => {
-      const channelItemIds = items
-        .filter((item) => item.channelId === channelId)
-        .map((item) => item.id);
-      if (!channelItemIds.length) return;
-      setReadIds((current) => new Set([...current, ...channelItemIds]));
+    (channelId: string, timestamp: number) => {
+      if (timestamp <= 0) return;
+      markContextRead(channelId, timestamp);
+      setForcedUnreadIds((current) => {
+        const next = new Set(current);
+        for (const event of topLevelChannelEvents(events, channelId)) {
+          if (event.created_at <= timestamp) next.delete(event.id);
+        }
+        return next;
+      });
     },
-    [items],
+    [events, markContextRead],
   );
+  const markThreadRead = useCallback(
+    (rootId: string, timestamp: number) => {
+      if (timestamp <= 0) return;
+      markContextRead(`thread:${rootId}`, timestamp);
+      setForcedUnreadIds((current) => {
+        const next = new Set(current);
+        for (const event of events) {
+          if (rootsByEvent.get(event.id) === rootId && event.created_at <= timestamp) {
+            next.delete(event.id);
+          }
+        }
+        return next;
+      });
+    },
+    [events, markContextRead, rootsByEvent],
+  );
+  const channelUnreadCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const current = currentPubkey.toLowerCase();
+    const channelTypes = new Map(channels.map((channel) => [channel.id, channel.type]));
+    for (const event of events) {
+      if (event.pubkey.toLowerCase() === current) continue;
+      const channelId = tagValue(event, "h");
+      if (!channelId) continue;
+      const rootId = rootsByEvent.get(event.id) ?? null;
+      if (rootId && channelTypes.get(channelId) !== "dm" && !notificationRoots.has(rootId)) {
+        continue;
+      }
+      const readAt = eventReadFrontier(event, readContexts, rootId);
+      if (forcedUnreadIds.has(event.id) || event.created_at > readAt) {
+        counts[channelId] = (counts[channelId] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [
+    channels,
+    currentPubkey,
+    events,
+    forcedUnreadIds,
+    notificationRoots,
+    readContexts,
+    rootsByEvent,
+  ]);
   const respondToApproval = useCallback(
     async (event: NostrEvent, approved: boolean) => {
       setApprovalPending(event.id);
@@ -246,6 +397,7 @@ export function useInbox({
   return {
     items,
     unreadCount,
+    channelUnreadCounts,
     loading,
     error,
     approvalPending,
@@ -254,6 +406,7 @@ export function useInbox({
     markUnread,
     markAllRead,
     markChannelRead,
+    markThreadRead,
     respondToApproval,
   };
 }

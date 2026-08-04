@@ -34,10 +34,12 @@ docker compose -f deploy/compose.yml up -d
 docker compose -f deploy/compose.yml ps
 ```
 
-`deploy/config.json` is public runtime configuration. Never put an `nsec`, Relay API token, owner
-key, provider credential, or private-only endpoint in it. `features.projects` and `features.forum`
-are deployment policy flags; the browser has no local override. Existing NIP-34 repositories and
-Forum channels remain visible when the corresponding Relay content already exists.
+`deploy/config.json` is public runtime configuration. Replace its example `relayUrl` with the
+deployment's explicit `ws://` or `wss://` Relay address; an empty value is rejected. Never put an
+`nsec`, Relay API token, owner key, provider credential, or private-only endpoint in it.
+`features.projects` and `features.forum` are deployment policy flags; the browser has no local
+override. Existing NIP-34 repositories and Forum channels remain visible when the corresponding
+Relay content already exists.
 
 Recreate only the Web container after changing the bind-mounted runtime configuration:
 

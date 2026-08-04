@@ -16,18 +16,20 @@ export type RuntimeConfig = {
   demoMode: boolean;
 };
 
-function relayUrlForLocation(): string {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${window.location.host}`;
-}
-
 function validPubkey(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{64}$/i.test(value);
 }
 
-function normalizeRelayUrl(value: unknown): string {
-  if (typeof value !== "string" || value.trim() === "") return relayUrlForLocation();
-  const url = new URL(value);
+export function normalizeRelayUrl(value: unknown): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(t("error.relayUrlRequired"));
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(t("error.relayUrlInvalid"));
+  }
   if (url.protocol !== "ws:" && url.protocol !== "wss:") {
     throw new Error(t("error.relayUrlProtocol"));
   }

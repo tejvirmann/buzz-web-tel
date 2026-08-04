@@ -392,6 +392,70 @@ test("mention autocomplete works in channel and thread composers", async ({ page
   await expectNoViewportOverflow(page);
 });
 
+test("mentions and single line breaks render consistently in channels and threads", async ({
+  page,
+}) => {
+  await enableDemo(page);
+  await page.goto("/");
+
+  const seededMention = page
+    .locator("article")
+    .filter({ hasText: "Codex(remote) Check the Relay deployment." })
+    .locator('[data-mention-agent="true"]');
+  await expect(seededMention).toHaveText("Codex(remote)");
+  await expect(seededMention.locator("svg")).toHaveCount(1);
+
+  const channelComposer = page.getByLabel("Send a message to #general");
+  await channelComposer.fill("@Codex(remote) 第一行\n第二行\n@Unknown");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  const channelMessage = page.locator("article").filter({ hasText: "第二行" }).last();
+  const channelMention = channelMessage.locator('[data-mention-agent="true"]');
+  await expect(channelMention).toHaveCount(1);
+  await expect(channelMention).toHaveText("Codex(remote)");
+  await expect(channelMention.locator("svg")).toHaveCount(1);
+  await expect(channelMessage.locator(".buzz-message-markdown br")).toHaveCount(2);
+  await expect(channelMessage).toContainText("@Unknown");
+  const mentionStyle = await channelMention.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      backgroundColor: style.backgroundColor,
+    };
+  });
+  expect(mentionStyle.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+  await expect
+    .poll(() =>
+      channelMention.evaluate((element) =>
+        Number.parseFloat(getComputedStyle(element).borderTopLeftRadius),
+      ),
+    )
+    .toBeGreaterThanOrEqual(4);
+
+  await channelMessage.hover();
+  await channelMessage.getByRole("button", { name: "Reply in thread" }).click();
+  const thread = page.getByRole("complementary", { name: "Thread" });
+  await expect(thread.locator("article").filter({ hasText: "第二行" }).locator("br")).toHaveCount(
+    2,
+  );
+
+  const threadComposer = thread.getByLabel("Reply to thread");
+  await threadComposer.fill("@Grok(remote) 线程第一行\n线程第二行\n@Unknown");
+  await thread.getByRole("button", { name: "Send message" }).click();
+
+  const threadReply = thread.locator("article").filter({ hasText: "线程第二行" });
+  const agentMention = threadReply.locator('[data-mention-agent="true"]');
+  await expect(agentMention).toHaveCount(1);
+  await expect(agentMention).toHaveText("Grok(remote)");
+  await expect(agentMention.locator("svg")).toHaveCount(1);
+  await expect(threadReply.locator(".buzz-message-markdown br")).toHaveCount(2);
+  await expect(threadReply.locator('[data-mention=""]')).toHaveCount(1);
+  await expect(threadReply).toContainText("@Unknown");
+  await page.screenshot({
+    path: "test-results/visual/buzz-web-mentions-and-line-breaks.png",
+    animations: "disabled",
+  });
+});
+
 test("workspace tools replace chat while preserving channel navigation", async ({ page }) => {
   await enableDemo(page);
   await page.goto("/");
@@ -521,7 +585,7 @@ test("Inbox filters unread activity and opens the source thread", async ({ page 
   await page.getByRole("button", { name: "Inbox" }).first().click();
   const inboxPanel = page.getByTestId("workspace-tool-inbox");
   await expect(inboxPanel.getByRole("heading", { name: "Inbox" })).toBeVisible();
-  await expect(inboxPanel.getByText("4 unread")).toBeVisible();
+  await expect(inboxPanel.getByText("3 unread")).toBeVisible();
   await expect(page.getByRole("heading", { name: "general", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "general", exact: true })).toBeVisible();
   const generalUnread = page.getByTestId(
@@ -533,12 +597,22 @@ test("Inbox filters unread activity and opens the source thread", async ({ page 
     animations: "disabled",
   });
 
+  await inboxPanel.getByRole("combobox", { name: "Filter Inbox" }).selectOption("mention");
+  await inboxPanel.getByRole("button", { name: /Can you review the deployment checklist/ }).click();
+  await expect(inboxPanel.getByText("2 unread")).toBeVisible();
+
   await inboxPanel.getByRole("combobox", { name: "Filter Inbox" }).selectOption("thread");
   const reply = inboxPanel.getByRole("button", {
     name: /Verification is complete and the result is attached/,
   });
+  await inboxPanel.getByRole("button", { name: "Close Inbox" }).click();
+  await expect(page.getByRole("heading", { name: "general", exact: true })).toBeVisible();
+  await expect(generalUnread).toBeVisible();
+
+  await page.getByRole("button", { name: "Inbox" }).first().click();
+  await inboxPanel.getByRole("combobox", { name: "Filter Inbox" }).selectOption("thread");
   await reply.click();
-  await expect(inboxPanel.getByText("3 unread")).toBeVisible();
+  await expect(inboxPanel.getByText("1 unread")).toBeVisible();
   await inboxPanel.getByRole("button", { name: "Open conversation" }).click();
   await expect(page.getByRole("complementary", { name: "Thread" })).toBeVisible();
   await expect(generalUnread).toHaveCount(0);
@@ -546,6 +620,7 @@ test("Inbox filters unread activity and opens the source thread", async ({ page 
   await page.getByRole("button", { name: "Inbox" }).first().click();
   await page.getByRole("button", { name: "Mark all as read" }).click();
   await expect(page.getByText("0 unread")).toBeVisible();
+  await expect(generalUnread).toHaveCount(0);
 });
 
 test("Chinese browsers receive the Chinese interface", async ({ browser }) => {

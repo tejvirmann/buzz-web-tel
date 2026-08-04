@@ -200,6 +200,7 @@ export function membersFromEvent(event: NostrEvent | undefined): ChannelMember[]
 export function channelFromEvents(
   metadata: NostrEvent,
   membership: NostrEvent | undefined,
+  currentPubkey?: string,
 ): BuzzChannel | null {
   const id = tagValue(metadata, "d");
   if (!id) return null;
@@ -209,6 +210,7 @@ export function channelFromEvents(
   const participants = [
     ...new Set([...tagValues(metadata, "p"), ...members.map((member) => member.pubkey)]),
   ];
+  const normalizedCurrent = currentPubkey?.toLowerCase();
   return {
     id,
     name: tagValue(metadata, "name") || (type === "dm" ? "Direct message" : "channel"),
@@ -217,6 +219,10 @@ export function channelFromEvents(
     type,
     visibility: hasSingleTag(metadata, "private") ? "private" : "open",
     archived: tagValue(metadata, "archived") === "true",
+    isMember: normalizedCurrent
+      ? members.some((member) => member.pubkey === normalizedCurrent) ||
+        (type === "dm" && participants.includes(normalizedCurrent))
+      : Boolean(membership),
     members,
     participantPubkeys: participants,
   };
@@ -273,6 +279,28 @@ export function profilesFromEvents(
   return profiles;
 }
 
+export function mergeProfileMetadata(
+  currentContent: string | undefined,
+  input: { name: string; about: string; picture: string },
+): string {
+  let current: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(currentContent ?? "{}") as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      current = parsed as Record<string, unknown>;
+    }
+  } catch {
+    current = {};
+  }
+  return JSON.stringify({
+    ...current,
+    display_name: input.name,
+    name: input.name,
+    about: input.about,
+    picture: input.picture,
+  });
+}
+
 export function channelDisplayName(
   channel: BuzzChannel,
   profiles: Record<string, UserProfile>,
@@ -303,6 +331,13 @@ function referencedEventIds(event: NostrEvent): string[] {
   return event.tags.filter((tag) => tag[0] === "e" && Boolean(tag[1])).map((tag) => tag[1]);
 }
 
+function eventMentionPubkeys(event: NostrEvent): string[] {
+  return event.tags
+    .filter((tag) => tag[0] === "p" || tag[0] === "mention")
+    .map((tag) => normalizedPubkey(tag[1]))
+    .filter((pubkey): pubkey is string => Boolean(pubkey));
+}
+
 export function buildTimeline(
   contentEvents: NostrEvent[],
   auxiliaryEvents: NostrEvent[],
@@ -315,6 +350,7 @@ export function buildTimeline(
       .flatMap(referencedEventIds),
   );
   const edits = new Map<string, NostrEvent>();
+  const editMentionPubkeys = new Map<string, Set<string>>();
   const reactions = new Map<string, NostrEvent[]>();
   const orderedAuxiliaryEvents = [...auxiliaryEvents].sort((left, right) =>
     left.created_at === right.created_at
@@ -325,15 +361,25 @@ export function buildTimeline(
     if (deleted.has(event.id)) continue;
     const target = referencedEventId(event);
     if (!target) continue;
-    if (event.kind === 40003 && (edits.get(target)?.created_at ?? 0) <= event.created_at) {
+    if (
+      event.kind === 40003 &&
+      !deleted.has(target) &&
+      (edits.get(target)?.created_at ?? 0) <= event.created_at
+    ) {
       edits.set(target, event);
+    }
+    if (event.kind === 40003 && !deleted.has(target)) {
+      const mentions = editMentionPubkeys.get(target) ?? new Set<string>();
+      for (const pubkey of eventMentionPubkeys(event)) mentions.add(pubkey);
+      editMentionPubkeys.set(target, mentions);
     }
     if (event.kind === 7) reactions.set(target, [...(reactions.get(target) ?? []), event]);
   }
 
   return contentEvents
-    .filter((event) => TIMELINE_KINDS.includes(event.kind) && !deleted.has(event.id))
+    .filter((event) => TIMELINE_KINDS.includes(event.kind))
     .map((event) => {
+      const isDeleted = deleted.has(event.id);
       const grouped = new Map<string, Map<string, string[]>>();
       for (const reaction of reactions.get(event.id) ?? []) {
         const actors = grouped.get(reaction.content) ?? new Map<string, string[]>();
@@ -342,16 +388,23 @@ export function buildTimeline(
         grouped.set(reaction.content, actors);
       }
       const refs = threadReference(event);
+      const mentionPubkeys = new Set(eventMentionPubkeys(event));
+      for (const pubkey of editMentionPubkeys.get(event.id) ?? []) mentionPubkeys.add(pubkey);
       return {
         event,
-        content: edits.get(event.id)?.content ?? event.content,
+        content: isDeleted ? "" : (edits.get(event.id)?.content ?? event.content),
+        mentionPubkeys: isDeleted ? [] : [...mentionPubkeys],
         ...refs,
-        reactions: [...grouped.entries()].map(([emoji, actors]) => ({
-          emoji,
-          count: actors.size,
-          reactedByMe: actors.has(currentPubkey),
-          currentUserEventIds: actors.get(currentPubkey) ?? [],
-        })),
+        reactions: isDeleted
+          ? []
+          : [...grouped.entries()].map(([emoji, actors]) => ({
+              emoji,
+              count: actors.size,
+              reactedByMe: actors.has(currentPubkey),
+              currentUserEventIds: actors.get(currentPubkey) ?? [],
+            })),
+        edited: !isDeleted && edits.has(event.id),
+        deleted: isDeleted,
         delivery: delivery[event.id] ?? "sent",
       } satisfies TimelineMessage;
     })

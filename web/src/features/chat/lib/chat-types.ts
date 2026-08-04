@@ -24,6 +24,7 @@ export type BuzzChannel = {
   type: ChannelType;
   visibility: "open" | "private";
   archived: boolean;
+  isMember: boolean;
   members: ChannelMember[];
   participantPubkeys: string[];
 };
@@ -38,9 +39,12 @@ export type ReactionGroup = {
 export type TimelineMessage = {
   event: NostrEvent;
   content: string;
+  mentionPubkeys: string[];
   rootId: string | null;
   parentId: string | null;
   reactions: ReactionGroup[];
+  edited: boolean;
+  deleted: boolean;
   delivery: "sending" | "sent" | "failed";
 };
 

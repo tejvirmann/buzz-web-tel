@@ -28,6 +28,11 @@ export function ThreadPanel({
   onResize,
   onSend,
   onTyping,
+  currentPubkey,
+  canModerate,
+  onEdit,
+  onDelete,
+  draftKey,
 }: {
   root: TimelineMessage;
   messages: TimelineMessage[];
@@ -48,6 +53,11 @@ export function ThreadPanel({
     replyTarget: TimelineMessage,
   ) => Promise<void>;
   onTyping: (replyTarget: TimelineMessage) => void;
+  currentPubkey: string;
+  canModerate: boolean;
+  onEdit: (message: TimelineMessage) => void;
+  onDelete: (message: TimelineMessage) => void;
+  draftKey: string;
 }) {
   const [replyTarget, setReplyTarget] = useState<TimelineMessage | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -111,13 +121,18 @@ export function ThreadPanel({
           };
           return (
             <MessageRow
+              canModerate={canModerate}
+              currentPubkey={currentPubkey}
               key={message.event.id}
               message={message}
               profile={profile}
+              profiles={profiles}
               relayUrl={relayUrl}
               presence={presence[pubkey]}
               showThreadAction={false}
               onReply={message.event.id === root.event.id ? undefined : setReplyTarget}
+              onDelete={onDelete}
+              onEdit={onEdit}
               onReact={onReact}
             />
           );
@@ -127,6 +142,7 @@ export function ThreadPanel({
       <MessageComposer
         compact
         disabled={disabled}
+        draftKey={draftKey}
         members={members}
         placeholder={t("thread.reply")}
         profiles={profiles}

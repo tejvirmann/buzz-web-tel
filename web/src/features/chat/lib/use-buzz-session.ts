@@ -1,109 +1,38 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  buildDiscoveredChannels,
+  membershipQueryChannelIds,
+  metadataChannelIdsMissingFrom,
+} from "@/features/chat/lib/channel-discovery";
+import {
   AUXILIARY_KINDS,
-  buildMessageTags,
   buildTimeline,
-  channelFromEvents,
   fallbackProfile,
-  messageRecipientPubkeys,
   parseCommunityRole,
   profilesFromEvents,
   systemMessagePubkeys,
   TIMELINE_KINDS,
-  tagValue,
 } from "@/features/chat/lib/chat-model";
 import type {
-  AttachmentDescriptor,
   BuzzChannel,
-  ChannelType,
   SearchHit,
   SessionState,
-  TimelineMessage,
   UserProfile,
 } from "@/features/chat/lib/chat-types";
+import {
+  demoEvent,
+  demoSystemEvent,
+  eventChannelId,
+  mergeEvents,
+  presenceSubject,
+  profileSeed,
+  validPresence,
+} from "@/features/chat/lib/session-events";
+import { type ReplyTarget, useSessionMutations } from "@/features/chat/lib/use-session-mutations";
 import type { NostrEvent, RelayConnectionState } from "@/shared/api/nostr-types";
 import type { BuzzRelayClient } from "@/shared/api/relay-client";
 import type { RuntimeConfig } from "@/shared/config/runtime-config";
 import { t } from "@/shared/i18n";
-import { signNostrEvent } from "@/shared/lib/nostr-signer";
-
-type CreateChannelInput = {
-  name: string;
-  description: string;
-  type: Exclude<ChannelType, "dm">;
-  visibility: "open" | "private";
-};
-
-type ReplyTarget = { id: string; rootId: string; authorPubkey: string } | null;
-
-function mergeEvents(current: NostrEvent[], incoming: NostrEvent[]): NostrEvent[] {
-  const events = new Map(current.map((event) => [event.id, event]));
-  for (const event of incoming) events.set(event.id, event);
-  return [...events.values()];
-}
-
-function latestByTag(events: NostrEvent[], tagName: string): Map<string, NostrEvent> {
-  const latest = new Map<string, NostrEvent>();
-  for (const event of events) {
-    const key = tagValue(event, tagName);
-    if (key && (latest.get(key)?.created_at ?? 0) <= event.created_at) latest.set(key, event);
-  }
-  return latest;
-}
-
-function profileSeed(config: RuntimeConfig, pubkey: string): Record<string, UserProfile> {
-  const profiles: Record<string, UserProfile> = {
-    [pubkey]: fallbackProfile(pubkey, "You"),
-  };
-  for (const agent of config.agents) {
-    profiles[agent.pubkey] = fallbackProfile(agent.pubkey, agent.name, true);
-  }
-  return profiles;
-}
-
-function eventChannelId(event: NostrEvent): string {
-  return tagValue(event, "h") ?? "";
-}
-
-function presenceSubject(event: NostrEvent): string {
-  return tagValue(event, "p")?.toLowerCase() ?? event.pubkey.toLowerCase();
-}
-
-function validPresence(value: string): value is "online" | "away" | "offline" {
-  return value === "online" || value === "away" || value === "offline";
-}
-
-function demoEvent(
-  id: string,
-  pubkey: string,
-  channelId: string,
-  content: string,
-  createdAt: number,
-  tags: string[][] = [],
-): NostrEvent {
-  return {
-    id: id.padEnd(64, id[0] ?? "0").slice(0, 64),
-    pubkey,
-    kind: 9,
-    content,
-    created_at: createdAt,
-    tags: [["h", channelId], ...tags],
-    sig: "0".repeat(128),
-  };
-}
-
-function demoSystemEvent(
-  id: string,
-  relayPubkey: string,
-  channelId: string,
-  payload: Record<string, string>,
-  createdAt: number,
-): NostrEvent {
-  return {
-    ...demoEvent(id, relayPubkey, channelId, JSON.stringify(payload), createdAt),
-    kind: 40099,
-  };
-}
 
 export function useBuzzSession({
   client,
@@ -121,6 +50,7 @@ export function useBuzzSession({
   );
   const [error, setError] = useState<string | null>(null);
   const [channels, setChannels] = useState<BuzzChannel[]>([]);
+  const [discoveredChannels, setDiscoveredChannels] = useState<BuzzChannel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [contentEvents, setContentEvents] = useState<NostrEvent[]>([]);
   const [auxiliaryEvents, setAuxiliaryEvents] = useState<NostrEvent[]>([]);
@@ -136,7 +66,6 @@ export function useBuzzSession({
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [delivery, setDelivery] = useState<Record<string, "sending" | "failed">>({});
   const typingSentAt = useRef(0);
-  const reactionPending = useRef(new Set<string>());
   const presenceUpdatedAt = useRef<Record<string, number>>({});
   const agentPubkeys = useMemo(
     () => new Set(config.agents.map((agent) => agent.pubkey.toLowerCase())),
@@ -154,6 +83,9 @@ export function useBuzzSession({
       const parsed = profilesFromEvents(events, agentPubkeys);
       setProfiles((current) => {
         const next = { ...current, ...parsed };
+        for (const candidate of unique) {
+          next[candidate] ??= fallbackProfile(candidate);
+        }
         for (const agent of config.agents) {
           const existing = next[agent.pubkey] ?? fallbackProfile(agent.pubkey, agent.name, true);
           next[agent.pubkey] = {
@@ -194,27 +126,31 @@ export function useBuzzSession({
     if (!client || demo) return;
     setLoadingChannels(true);
     try {
-      const [memberEvents, roleEvents] = await Promise.all([
+      const [ownMemberEvents, metadataEvents, roleEvents] = await Promise.all([
         client.query({ kinds: [39002], "#p": [pubkey], limit: 500 }),
+        client.query({ kinds: [39000], limit: 1_000 }),
         client.query({ kinds: [13534], limit: 1 }),
       ]);
-      const membersByChannel = latestByTag(memberEvents, "d");
-      const channelIds = [...membersByChannel.keys()];
-      const metadataEvents = channelIds.length
-        ? await client.query({ kinds: [39000], "#d": channelIds, limit: 500 })
-        : [];
-      const channelsById = latestByTag(metadataEvents, "d");
-      const nextChannels = channelIds
-        .map((id) => {
-          const metadata = channelsById.get(id);
-          return metadata ? channelFromEvents(metadata, membersByChannel.get(id)) : null;
-        })
-        .filter((channel): channel is BuzzChannel => channel !== null && !channel.archived)
-        .sort((left, right) => {
-          if (left.type === "dm" && right.type !== "dm") return 1;
-          if (left.type !== "dm" && right.type === "dm") return -1;
-          return left.name.localeCompare(right.name);
-        });
+      const missingOwnMetadataIds = metadataChannelIdsMissingFrom(metadataEvents, ownMemberEvents);
+      const membershipVisibleIds = membershipQueryChannelIds(metadataEvents, ownMemberEvents);
+      const [visibleMemberEvents, missingMetadataEvents] = await Promise.all([
+        membershipVisibleIds.length
+          ? client.query({ kinds: [39002], "#d": membershipVisibleIds, limit: 1_000 })
+          : Promise.resolve([]),
+        missingOwnMetadataIds.length
+          ? client.query({ kinds: [39000], "#d": missingOwnMetadataIds, limit: 500 })
+          : Promise.resolve([]),
+      ]);
+      const nextDiscovered = buildDiscoveredChannels({
+        metadataEvents: mergeEvents(metadataEvents, missingMetadataEvents),
+        memberEvents: visibleMemberEvents,
+        ownMemberEvents,
+        currentPubkey: pubkey,
+      });
+      const nextChannels = nextDiscovered.filter(
+        (channel) => channel.isMember && !channel.archived,
+      );
+      setDiscoveredChannels(nextDiscovered);
       setChannels(nextChannels);
       setSelectedChannelId((current) =>
         current && nextChannels.some((channel) => channel.id === current)
@@ -227,7 +163,7 @@ export function useBuzzSession({
       const profilePubkeys = [
         pubkey,
         ...config.agents.map((agent) => agent.pubkey),
-        ...nextChannels.flatMap((channel) => channel.members.map((member) => member.pubkey)),
+        ...nextDiscovered.flatMap((channel) => channel.members.map((member) => member.pubkey)),
       ];
       await Promise.all([
         loadProfiles(profilePubkeys),
@@ -283,37 +219,51 @@ export function useBuzzSession({
       },
     };
     setProfiles(demoProfiles);
-    setChannels([
-      {
-        id: general,
-        name: "general",
-        description: "Team collaboration and agent tasks",
-        topic: "Build, operate, and learn together",
-        type: "stream",
-        visibility: "open",
-        archived: false,
-        members: [
-          { pubkey, role: "owner" },
-          { pubkey: codex, role: "bot" },
-          { pubkey: grok, role: "bot" },
-        ],
-        participantPubkeys: [pubkey, codex, grok],
-      },
-      {
-        id: direct,
-        name: "Codex(remote)",
-        description: "",
-        topic: null,
-        type: "dm",
-        visibility: "private",
-        archived: false,
-        members: [
-          { pubkey, role: "owner" },
-          { pubkey: codex, role: "bot" },
-        ],
-        participantPubkeys: [pubkey, codex],
-      },
-    ]);
+    const generalChannel: BuzzChannel = {
+      id: general,
+      name: "general",
+      description: "Team collaboration and agent tasks",
+      topic: "Build, operate, and learn together",
+      type: "stream",
+      visibility: "open",
+      archived: false,
+      isMember: true,
+      members: [
+        { pubkey, role: "owner" },
+        { pubkey: codex, role: "bot" },
+        { pubkey: grok, role: "bot" },
+      ],
+      participantPubkeys: [pubkey, codex, grok],
+    };
+    const directChannel: BuzzChannel = {
+      id: direct,
+      name: "Codex(remote)",
+      description: "",
+      topic: null,
+      type: "dm",
+      visibility: "private",
+      archived: false,
+      isMember: true,
+      members: [
+        { pubkey, role: "owner" },
+        { pubkey: codex, role: "bot" },
+      ],
+      participantPubkeys: [pubkey, codex],
+    };
+    const discoverableChannel: BuzzChannel = {
+      id: "77777777-2222-4333-8444-555555555555",
+      name: "product",
+      description: "An open channel available to join",
+      topic: null,
+      type: "stream",
+      visibility: "open",
+      archived: false,
+      isMember: false,
+      members: [{ pubkey: grok, role: "owner" }],
+      participantPubkeys: [grok],
+    };
+    setChannels([generalChannel, directChannel]);
+    setDiscoveredChannels([generalChannel, directChannel, discoverableChannel]);
     setSelectedChannelId(general);
     const now = Math.floor(Date.now() / 1000);
     const relayPubkey = "3".repeat(64);
@@ -588,197 +538,26 @@ export function useBuzzSession({
 
   const selectedChannel = channels.find((channel) => channel.id === selectedChannelId) ?? null;
 
-  const sendMessage = useCallback(
-    async (
-      content: string,
-      attachments: AttachmentDescriptor[],
-      replyTarget: ReplyTarget = null,
-    ) => {
-      if (!selectedChannel || (!content.trim() && !attachments.length)) return;
-      const recipients = messageRecipientPubkeys(
-        content,
-        selectedChannel,
-        profiles,
-        pubkey,
-        replyTarget,
-        messages,
-      );
-      const tags = buildMessageTags(selectedChannel.id, recipients, attachments, replyTarget);
-      if (demo) {
-        const event = demoEvent(
-          crypto.randomUUID().replace(/-/g, ""),
-          pubkey,
-          selectedChannel.id,
-          content,
-          Math.floor(Date.now() / 1000),
-          tags.slice(1),
-        );
-        setContentEvents((current) => mergeEvents(current, [event]));
-        return;
-      }
-      if (!client) throw new Error(t("error.relayClient"));
-      const event = await signNostrEvent({ kind: 9, content, tags }, { requireActive: true });
-      setContentEvents((current) => mergeEvents(current, [event]));
-      setDelivery((current) => ({ ...current, [event.id]: "sending" }));
-      try {
-        await client.publishSigned(event);
-        setDelivery((current) => {
-          const next = { ...current };
-          delete next[event.id];
-          return next;
-        });
-      } catch (publishError) {
-        setDelivery((current) => ({ ...current, [event.id]: "failed" }));
-        throw publishError;
-      }
-    },
-    [client, demo, messages, profiles, pubkey, selectedChannel],
-  );
-
-  const addReaction = useCallback(
-    async (message: TimelineMessage, emoji: string) => {
-      const pendingKey = `${message.event.id}:${emoji}`;
-      if (reactionPending.current.has(pendingKey)) return;
-      reactionPending.current.add(pendingKey);
-      try {
-        const existing = message.reactions.find((reaction) => reaction.emoji === emoji);
-        const reactionEventIds = existing?.currentUserEventIds ?? [];
-
-        if (reactionEventIds.length) {
-          for (const reactionEventId of reactionEventIds) {
-            if (demo) {
-              const deletion = demoEvent(
-                crypto.randomUUID().replace(/-/g, ""),
-                pubkey,
-                eventChannelId(message.event),
-                "",
-                Math.floor(Date.now() / 1000),
-                [["e", reactionEventId]],
-              );
-              deletion.kind = 5;
-              setAuxiliaryEvents((current) => mergeEvents(current, [deletion]));
-              continue;
-            }
-            if (!client) throw new Error(t("error.relayClient"));
-            const deletion = await signNostrEvent(
-              { kind: 5, content: "", tags: [["e", reactionEventId]] },
-              { requireActive: true },
-            );
-            setAuxiliaryEvents((current) => mergeEvents(current, [deletion]));
-            try {
-              await client.publishSigned(deletion);
-            } catch (publishError) {
-              setAuxiliaryEvents((current) => current.filter((event) => event.id !== deletion.id));
-              throw publishError;
-            }
-          }
-          return;
-        }
-
-        if (demo) {
-          const event = demoEvent(
-            crypto.randomUUID().replace(/-/g, ""),
-            pubkey,
-            eventChannelId(message.event),
-            emoji,
-            Math.floor(Date.now() / 1000),
-            [["e", message.event.id]],
-          );
-          event.kind = 7;
-          setAuxiliaryEvents((current) => mergeEvents(current, [event]));
-          return;
-        }
-        if (!client) throw new Error(t("error.relayClient"));
-        const event = await signNostrEvent(
-          { kind: 7, content: emoji, tags: [["e", message.event.id]] },
-          { requireActive: true },
-        );
-        setAuxiliaryEvents((current) => mergeEvents(current, [event]));
-        try {
-          await client.publishSigned(event);
-        } catch (publishError) {
-          setAuxiliaryEvents((current) => current.filter((item) => item.id !== event.id));
-          throw publishError;
-        }
-      } finally {
-        reactionPending.current.delete(pendingKey);
-      }
-    },
-    [client, demo, pubkey],
-  );
-
-  const createChannel = useCallback(
-    async (input: CreateChannelInput): Promise<string> => {
-      const id = crypto.randomUUID();
-      if (demo) {
-        setChannels((current) => [
-          ...current,
-          {
-            id,
-            name: input.name.trim(),
-            description: input.description.trim(),
-            topic: null,
-            type: input.type,
-            visibility: input.visibility,
-            archived: false,
-            members: [{ pubkey, role: "owner" }],
-            participantPubkeys: [pubkey],
-          },
-        ]);
-        setSelectedChannelId(id);
-        return id;
-      }
-      if (!client) throw new Error(t("error.relayClient"));
-      const tags: string[][] = [
-        ["h", id],
-        ["name", input.name.trim()],
-        ["visibility", input.visibility],
-        ["channel_type", input.type],
-      ];
-      if (input.description.trim()) tags.push(["about", input.description.trim()]);
-      await client.publish({ kind: 9007, content: "", tags });
-      await loadChannels();
-      setSelectedChannelId(id);
-      return id;
-    },
-    [client, demo, loadChannels, pubkey],
-  );
-
-  const openDm = useCallback(
-    async (targetPubkey: string): Promise<string> => {
-      if (demo) {
-        const existing = channels.find(
-          (channel) => channel.type === "dm" && channel.participantPubkeys.includes(targetPubkey),
-        );
-        if (existing) setSelectedChannelId(existing.id);
-        return existing?.id ?? "";
-      }
-      if (!client) throw new Error(t("error.relayClient"));
-      const requestedId = crypto.randomUUID();
-      const result = await client.publish({
-        kind: 41010,
-        content: "",
-        tags: [
-          ["p", targetPubkey],
-          ["d", requestedId],
-        ],
-      });
-      let channelId: string = requestedId;
-      const responseJson = result.message.startsWith("response:")
-        ? result.message.slice("response:".length)
-        : "";
-      try {
-        const response = JSON.parse(responseJson) as { channel_id?: string };
-        channelId = response.channel_id || channelId;
-      } catch {
-        // Older relay versions may not return structured response metadata.
-      }
-      await loadChannels();
-      setSelectedChannelId(channelId);
-      return channelId;
-    },
-    [channels, client, demo, loadChannels],
-  );
+  const mutations = useSessionMutations({
+    client,
+    demo,
+    pubkey,
+    channels,
+    discoveredChannels,
+    communityRole,
+    selectedChannel,
+    messages,
+    profiles,
+    setChannels,
+    setDiscoveredChannels,
+    setSelectedChannelId,
+    setContentEvents,
+    setAuxiliaryEvents,
+    setDelivery,
+    setProfiles,
+    loadChannels,
+    loadProfiles,
+  });
 
   const search = useCallback(
     async (term: string): Promise<SearchHit[]> => {
@@ -834,11 +613,9 @@ export function useBuzzSession({
   return {
     state,
     selectedChannel,
+    discoveredChannels,
     selectChannel: setSelectedChannelId,
-    sendMessage,
-    addReaction,
-    createChannel,
-    openDm,
+    ...mutations,
     search,
     notifyTyping,
     ensureProfiles: loadProfiles,

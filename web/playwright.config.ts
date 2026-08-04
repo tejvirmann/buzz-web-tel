@@ -21,6 +21,13 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
       },
     },
+    {
+      name: "p0",
+      testMatch: ["**/p0.spec.ts"],
+      use: {
+        ...devices["Desktop Chrome"],
+      },
+    },
   ],
   webServer: {
     command: "npx vite preview --port 4187 --strictPort --host 127.0.0.1",

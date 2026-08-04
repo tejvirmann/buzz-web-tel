@@ -1,4 +1,15 @@
-import { EllipsisVertical, RefreshCw, Search, Settings, UsersRound } from "lucide-react";
+import {
+  Archive,
+  Bell,
+  BellOff,
+  EllipsisVertical,
+  RefreshCw,
+  Search,
+  Settings,
+  Star,
+  StarOff,
+  UsersRound,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { t } from "@/shared/i18n";
 
@@ -13,6 +24,12 @@ export function ChannelHeaderActions({
   onSearch,
   onSettings,
   onToggleMembers,
+  starred,
+  muted,
+  canArchive,
+  onToggleStarred,
+  onToggleMuted,
+  onArchive,
 }: {
   loading: boolean;
   memberCount: number;
@@ -21,6 +38,12 @@ export function ChannelHeaderActions({
   onSearch: () => void;
   onSettings: () => void;
   onToggleMembers: () => void;
+  starred: boolean;
+  muted: boolean;
+  canArchive: boolean;
+  onToggleStarred: () => void;
+  onToggleMuted: () => void;
+  onArchive: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -99,6 +122,45 @@ export function ChannelHeaderActions({
               />
               {t("common.refresh")}
             </button>
+            <div className="my-1 h-px bg-border" />
+            <button
+              className="flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm hover:bg-foreground/6"
+              role="menuitem"
+              type="button"
+              onClick={() => runMenuAction(onToggleStarred)}
+            >
+              {starred ? (
+                <StarOff className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Star className="h-4 w-4 text-muted-foreground" />
+              )}
+              {starred ? t("channel.unstar") : t("channel.star")}
+            </button>
+            <button
+              className="flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm hover:bg-foreground/6"
+              role="menuitem"
+              type="button"
+              onClick={() => runMenuAction(onToggleMuted)}
+            >
+              {muted ? (
+                <Bell className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <BellOff className="h-4 w-4 text-muted-foreground" />
+              )}
+              {muted ? t("channel.unmute") : t("channel.mute")}
+            </button>
+            {canArchive ? (
+              <button
+                className="flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm text-destructive hover:bg-destructive/8"
+                role="menuitem"
+                type="button"
+                onClick={() => runMenuAction(onArchive)}
+              >
+                <Archive className="h-4 w-4" />
+                {t("channel.archive")}
+              </button>
+            ) : null}
+            <div className="my-1 h-px bg-border" />
             <button
               className="flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm hover:bg-foreground/6"
               role="menuitem"

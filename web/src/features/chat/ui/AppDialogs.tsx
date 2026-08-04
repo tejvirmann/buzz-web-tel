@@ -1,10 +1,9 @@
-import { Hash, LoaderCircle, LockKeyhole, Search, X } from "lucide-react";
+import { Hash, LoaderCircle, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { BuzzChannel, SearchHit, UserProfile } from "@/features/chat/lib/chat-types";
 import { Avatar } from "@/features/chat/ui/Avatar";
 import { t } from "@/shared/i18n";
 import { truncatePubkey } from "@/shared/lib/pubkey";
-import { useTheme } from "@/shared/theme/ThemeProvider";
 
 export function DialogFrame({
   title,
@@ -294,70 +293,6 @@ export function SearchDialog({
             {t("dialog.noMessages")}
           </p>
         ) : null}
-      </div>
-    </DialogFrame>
-  );
-}
-
-export function SettingsDialog({
-  relayUrl,
-  pubkey,
-  connectionState,
-  onClose,
-  onSignOut,
-}: {
-  relayUrl: string;
-  pubkey: string;
-  connectionState: string;
-  onClose: () => void;
-  onSignOut: () => void;
-}) {
-  const { theme, setTheme } = useTheme();
-  return (
-    <DialogFrame title={t("common.settings")} onClose={onClose}>
-      <div className="space-y-5 p-4">
-        <div>
-          <div className="mb-2 text-xs font-medium">{t("dialog.appearance")}</div>
-          <div className="inline-flex rounded-md border bg-background p-1">
-            {(["light", "dark", "system"] as const).map((value) => (
-              <button
-                key={value}
-                aria-pressed={theme === value}
-                className={`h-8 rounded px-3 text-xs ${theme === value ? "bg-foreground text-background" : "hover:bg-foreground/5"}`}
-                type="button"
-                onClick={() => setTheme(value)}
-              >
-                {value === "light"
-                  ? t("dialog.light")
-                  : value === "dark"
-                    ? t("dialog.dark")
-                    : t("dialog.systemTheme")}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-2 border-t pt-4">
-          <div className="flex items-center gap-2 text-xs font-medium">
-            <LockKeyhole className="h-4 w-4" /> {t("dialog.relaySession")}
-          </div>
-          <dl className="grid grid-cols-[5rem_1fr] gap-y-2 text-xs">
-            <dt className="text-muted-foreground">{t("field.status")}</dt>
-            <dd>{connectionState}</dd>
-            <dt className="text-muted-foreground">{t("field.address")}</dt>
-            <dd className="truncate font-mono">{relayUrl}</dd>
-            <dt className="text-muted-foreground">{t("field.publicKey")}</dt>
-            <dd className="truncate font-mono">{pubkey}</dd>
-          </dl>
-        </div>
-        <div className="flex justify-end border-t pt-4">
-          <button
-            className="h-9 rounded-md border border-destructive/40 px-3 text-sm text-destructive hover:bg-destructive/8"
-            type="button"
-            onClick={onSignOut}
-          >
-            {t("dialog.signOut")}
-          </button>
-        </div>
       </div>
     </DialogFrame>
   );

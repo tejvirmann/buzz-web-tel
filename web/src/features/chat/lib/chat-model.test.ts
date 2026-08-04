@@ -6,6 +6,7 @@ import {
   contentWithAttachments,
   describeSystemMessage,
   fallbackProfile,
+  mergeProfileMetadata,
   messageRecipientPubkeys,
   parseCommunityRole,
   parseSystemMessagePayload,
@@ -74,7 +75,17 @@ describe("Buzz channel model", () => {
 
 describe("Buzz timeline model", () => {
   it("merges replies, edits, reactions, and deletions", () => {
-    const root = event("d", 9, SELF, "before", [["h", CHANNEL]], 10);
+    const root = event(
+      "d",
+      9,
+      SELF,
+      "before @Codex(remote)",
+      [
+        ["h", CHANNEL],
+        ["p", AGENT],
+      ],
+      10,
+    );
     const reply = event(
       "e",
       9,
@@ -86,19 +97,38 @@ describe("Buzz timeline model", () => {
       ],
       11,
     );
-    const edit = event("f", 40003, SELF, "after", [["e", root.id]], 12);
+    const edit = event(
+      "f",
+      40003,
+      SELF,
+      "after @Teammate",
+      [
+        ["e", root.id],
+        ["mention", AGENT],
+        ["p", RELAY],
+      ],
+      12,
+    );
     const reaction = event("1", 7, AGENT, "✅", [["e", root.id]], 13);
     const deleted = event("2", 9, SELF, "remove me", [["h", CHANNEL]], 14);
     const deletion = event("3", 5, SELF, "", [["e", deleted.id]], 15);
 
     const timeline = buildTimeline([root, reply, deleted], [edit, reaction, deletion], SELF, {});
-    expect(timeline).toHaveLength(2);
+    expect(timeline).toHaveLength(3);
     expect(timeline[0]).toMatchObject({
-      content: "after",
+      content: "after @Teammate",
+      mentionPubkeys: [AGENT, RELAY],
       rootId: null,
       reactions: [{ emoji: "✅", count: 1, reactedByMe: false }],
     });
     expect(timeline[1]).toMatchObject({ rootId: root.id, parentId: root.id });
+    expect(timeline[2]).toMatchObject({
+      content: "",
+      mentionPubkeys: [],
+      deleted: true,
+      edited: false,
+      reactions: [],
+    });
   });
 
   it("deduplicates reactions by user and applies reaction tombstones", () => {
@@ -139,7 +169,7 @@ describe("Buzz timeline model", () => {
 
   it("renders relay system events as Desktop-style timeline descriptions", () => {
     const profiles = {
-      [SELF]: fallbackProfile(SELF, "Hardy"),
+      [SELF]: fallbackProfile(SELF, "Owner"),
       [AGENT]: fallbackProfile(AGENT, "Codex(remote)", true),
     };
     const created = event(
@@ -190,6 +220,32 @@ describe("Buzz timeline model", () => {
 
     expect(parseSystemMessagePayload(ordinary)).toBeNull();
     expect(parseSystemMessagePayload(unknown)).toBeNull();
+  });
+});
+
+describe("Buzz profile metadata", () => {
+  it("preserves fields that the Web profile editor does not expose", () => {
+    expect(
+      JSON.parse(
+        mergeProfileMetadata(
+          JSON.stringify({ nip05: "owner@relay.example", website: "https://example.com" }),
+          { name: "Alex", about: "Builder", picture: "https://example.com/avatar.png" },
+        ),
+      ),
+    ).toEqual({
+      nip05: "owner@relay.example",
+      website: "https://example.com",
+      display_name: "Alex",
+      name: "Alex",
+      about: "Builder",
+      picture: "https://example.com/avatar.png",
+    });
+  });
+
+  it("ignores malformed existing profile content", () => {
+    expect(
+      JSON.parse(mergeProfileMetadata("not-json", { name: "Alex", about: "", picture: "" })),
+    ).toEqual({ display_name: "Alex", name: "Alex", about: "", picture: "" });
   });
 });
 
@@ -256,6 +312,7 @@ describe("Buzz outgoing messages", () => {
       type: "stream" as const,
       visibility: "open" as const,
       archived: false,
+      isMember: true,
       members: [
         { pubkey: SELF, role: "owner" as const },
         { pubkey: AGENT, role: "bot" as const },

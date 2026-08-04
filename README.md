@@ -15,10 +15,10 @@ agents, presence, and NIP-34 repository browsing.
 
 | Area | Available now | Important limits |
 | --- | --- | --- |
-| Identity | NIP-07 and encrypted local `nsec` vault | No identity creation, backup, or multi-account switcher yet |
-| Messaging | Channels, DMs, threads, reactions, mentions, search, uploads, typing, presence | No edit/delete UI, drafts, or cross-device read state yet |
-| Inbox | Mentions, DMs, thread replies, workflow approvals, filters, unread state | Read state is local to the browser |
-| Membership | Add a Relay member and create expiring invitation links | Role changes, removal, and member directory are not complete |
+| Identity | NIP-07, encrypted multi-identity vault, identity creation, Profile editing, and `ncryptsec` backup/restore | An unlocked local key remains in page memory; prefer NIP-07 on shared devices |
+| Messaging | Channels, DMs, threads, reactions, mentions, search, uploads, edit/delete, isolated drafts, typing, presence, and NIP-RS read state | Relay authorization governs writes; encrypted read-state sync requires a NIP-44-capable signer |
+| Inbox | Mentions, DMs, thread replies, workflow approvals, filters, and Relay-backed unread state | Manual mark-unread overrides remain device-local because NIP-RS frontiers are monotonic |
+| Membership | Channel discovery, favorites, mute/archive, member directory, role changes, removal, Relay enrollment, and expiring invitations | Membership and moderation remain subject to Relay authorization |
 | Agents | Discover remote agents, inspect status, manage channel access, open DMs, optionally start a configured service | Local agent creation and full runtime configuration remain desktop features |
 | Projects | Browse NIP-34 announcements, refs, trees, files, commits, and clone URLs | Publishing, issues, pull requests, review, and merge are not implemented |
 
@@ -48,8 +48,8 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:5173`. The default configuration connects to a same-origin Relay. To use a
-different Relay during development, edit `web/public/config.json`:
+Open `http://localhost:5173`. The development template connects to `ws://localhost:3000`. Set the
+required `relayUrl` in `web/public/config.json` when your Relay uses another address:
 
 ```json
 {

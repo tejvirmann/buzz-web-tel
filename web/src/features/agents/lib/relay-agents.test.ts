@@ -27,6 +27,7 @@ function channel(): BuzzChannel {
     type: "stream",
     visibility: "open",
     archived: false,
+    isMember: true,
     members: [{ pubkey: AGENT, role: "bot" }],
     participantPubkeys: [AGENT],
   };

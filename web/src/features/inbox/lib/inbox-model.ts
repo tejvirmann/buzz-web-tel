@@ -15,6 +15,68 @@ export type InboxItem = {
   unread: boolean;
 };
 
+function replyEventId(event: NostrEvent): string | null {
+  return event.tags.find((tag) => tag[0] === "e" && tag[3] === "reply")?.[1] ?? null;
+}
+
+function explicitThreadRootId(event: NostrEvent): string | null {
+  return event.tags.find((tag) => tag[0] === "e" && tag[3] === "root")?.[1] ?? null;
+}
+
+/** Resolve nested replies to their top-level root, including legacy reply-only events. */
+export function threadRootIds(events: readonly NostrEvent[]): ReadonlyMap<string, string> {
+  const eventsById = new Map(events.map((event) => [event.id, event]));
+  const roots = new Map<string, string>();
+  const unresolved = new Set<string>();
+
+  const resolve = (event: NostrEvent, visiting: Set<string>): string | null => {
+    const cached = roots.get(event.id);
+    if (cached) return cached;
+    if (unresolved.has(event.id) || visiting.has(event.id)) return null;
+
+    const explicitRoot = explicitThreadRootId(event);
+    if (explicitRoot) {
+      roots.set(event.id, explicitRoot);
+      return explicitRoot;
+    }
+
+    const parentId = replyEventId(event);
+    if (!parentId) {
+      unresolved.add(event.id);
+      return null;
+    }
+
+    const parent = eventsById.get(parentId);
+    const nextVisiting = new Set(visiting).add(event.id);
+    const rootId = parent ? (resolve(parent, nextVisiting) ?? parentId) : parentId;
+    roots.set(event.id, rootId);
+    return rootId;
+  };
+
+  for (const event of events) resolve(event, new Set());
+  return roots;
+}
+
+/** Threads the current identity authored, joined, or was mentioned in. */
+export function threadNotificationRootIds(
+  events: readonly NostrEvent[],
+  currentPubkey: string,
+  rootsByEvent: ReadonlyMap<string, string> = threadRootIds(events),
+): ReadonlySet<string> {
+  const current = currentPubkey.toLowerCase();
+  const roots = new Set<string>();
+  for (const event of events) {
+    const rootId = rootsByEvent.get(event.id);
+    if (event.pubkey.toLowerCase() === current) {
+      roots.add(rootId ?? event.id);
+    }
+    if (rootId && tagValues(event, "p").some((pubkey) => pubkey.toLowerCase() === current)) {
+      roots.add(rootId);
+    }
+  }
+  return roots;
+}
+
 export function inboxPreview(event: NostrEvent): string {
   const content = event.content.trim();
   if (!content.startsWith("{")) return content;
@@ -44,6 +106,8 @@ export function buildInboxItems({
     events.filter((event) => event.pubkey.toLowerCase() === current).map((event) => event.id),
   );
   const unique = new Map(events.map((event) => [event.id, event]));
+  const rootsByEvent = threadRootIds([...unique.values()]);
+  const notificationRoots = threadNotificationRootIds([...unique.values()], current, rootsByEvent);
   const resolvedApprovals = new Set(
     [...unique.values()]
       .filter((event) => event.kind === 46011 || event.kind === 46012)
@@ -62,6 +126,7 @@ export function buildInboxItems({
       const channelId = tagValue(event, "h");
       const channel = channelId ? channelsById.get(channelId) : undefined;
       const refs = threadReference(event);
+      const threadRootId = rootsByEvent.get(event.id) ?? null;
       const referencedOwnMessage = event.tags
         .filter((tag) => tag[0] === "e")
         .some((tag) => authoredIds.has(tag[1] ?? ""));
@@ -69,15 +134,19 @@ export function buildInboxItems({
       let category: InboxCategory | null = null;
       if (event.kind === 46010) category = "needs_action";
       else if (channel?.type === "dm") category = "dm";
-      else if (refs.parentId && referencedOwnMessage) category = "thread";
-      else if (mentioned) category = "mention";
+      else if (
+        refs.parentId &&
+        (referencedOwnMessage || (threadRootId ? notificationRoots.has(threadRootId) : false))
+      ) {
+        category = "thread";
+      } else if (mentioned) category = "mention";
       if (!category) return null;
       return {
         id: event.id,
         event,
         category,
         channelId,
-        threadRootId: refs.parentId ? refs.rootId : null,
+        threadRootId,
         unread: !readIds.has(event.id),
       };
     })

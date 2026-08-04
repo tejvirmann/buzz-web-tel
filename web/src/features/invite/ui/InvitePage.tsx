@@ -12,7 +12,7 @@ import {
   detectBuzzDownloadPlatform,
   resolveBuzzDownloadUrlForPlatform,
 } from "@/shared/lib/buzz-download";
-import { hasNip07Provider } from "@/shared/lib/nostr-signer";
+import { useNip07Availability } from "@/shared/lib/use-nip07-availability";
 import { Button } from "@/shared/ui/button";
 
 import { InviteJoinPolicyNotice } from "./InviteJoinPolicyNotice";
@@ -127,7 +127,7 @@ export function InvitePage({ code, relayUrl }: { code: string; relayUrl: string 
     }
   };
 
-  const browserSigningAvailable = hasNip07Provider();
+  const browserSigningAvailable = useNip07Availability();
   const disabled =
     policy === undefined ||
     opening ||

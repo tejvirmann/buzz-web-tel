@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { BuzzChannel } from "@/features/chat/lib/chat-types";
-import { buildInboxItems, inboxPreview } from "@/features/inbox/lib/inbox-model";
+import {
+  buildInboxItems,
+  inboxPreview,
+  threadNotificationRootIds,
+  threadRootIds,
+} from "@/features/inbox/lib/inbox-model";
 import type { NostrEvent } from "@/shared/api/nostr-types";
 
 const ME = "1".repeat(64);
@@ -35,6 +40,7 @@ const channels: BuzzChannel[] = [
     type: "stream",
     visibility: "open",
     archived: false,
+    isMember: true,
     members: [],
     participantPubkeys: [],
   },
@@ -46,6 +52,7 @@ const channels: BuzzChannel[] = [
     type: "dm",
     visibility: "private",
     archived: false,
+    isMember: true,
     members: [],
     participantPubkeys: [ME, OTHER],
   },
@@ -125,6 +132,89 @@ describe("buildInboxItems", () => {
       readIds: new Set(),
     });
     expect(items).toEqual([]);
+  });
+
+  it("includes nested replies to threads the current user created or joined", () => {
+    const otherRoot = event("3", OTHER, 9, [["h", "general"]], "other root", 1);
+    const ownReply = event(
+      "4",
+      ME,
+      9,
+      [
+        ["h", "general"],
+        ["e", otherRoot.id, "", "reply"],
+      ],
+      "joining the thread",
+      2,
+    );
+    const nestedReply = event(
+      "5",
+      OTHER,
+      9,
+      [
+        ["h", "general"],
+        ["e", otherRoot.id, "", "root"],
+        ["e", ownReply.id, "", "reply"],
+      ],
+      "nested response",
+      3,
+    );
+    const ownRoot = event("6", ME, 9, [["h", "general"]], "own root", 4);
+    const ownRootReply = event(
+      "7",
+      OTHER,
+      9,
+      [
+        ["h", "general"],
+        ["e", ownRoot.id, "", "reply"],
+      ],
+      "root response",
+      5,
+    );
+
+    const items = buildInboxItems({
+      events: [otherRoot, ownReply, nestedReply, ownRoot, ownRootReply],
+      channels,
+      currentPubkey: ME,
+      readIds: new Set(),
+    });
+
+    expect(items.map((item) => item.event.id)).toEqual([ownRootReply.id, nestedReply.id]);
+    expect(items.every((item) => item.category === "thread")).toBe(true);
+    expect(items.find((item) => item.id === nestedReply.id)?.threadRootId).toBe(otherRoot.id);
+  });
+
+  it("walks reply-only ancestors to resolve a nested thread root", () => {
+    const root = event("3", OTHER, 9, [["h", "general"]]);
+    const reply = event("4", ME, 9, [
+      ["h", "general"],
+      ["e", root.id, "", "reply"],
+    ]);
+    const nested = event("5", OTHER, 9, [
+      ["h", "general"],
+      ["e", reply.id, "", "reply"],
+    ]);
+
+    expect(threadRootIds([root, reply, nested]).get(nested.id)).toBe(root.id);
+  });
+
+  it("tracks threads authored, joined, or mentioned for notification badges", () => {
+    const authored = event("3", ME, 9, [["h", "general"]]);
+    const joinedRoot = event("4", OTHER, 9, [["h", "general"]]);
+    const joinedReply = event("5", ME, 9, [
+      ["h", "general"],
+      ["e", joinedRoot.id, "", "reply"],
+    ]);
+    const mentionedRoot = event("6", OTHER, 9, [["h", "general"]]);
+    const mention = event("7", OTHER, 9, [
+      ["h", "general"],
+      ["e", mentionedRoot.id, "", "reply"],
+      ["p", ME],
+    ]);
+
+    expect(
+      threadNotificationRootIds([authored, joinedRoot, joinedReply, mentionedRoot, mention], ME),
+    ).toEqual(new Set([authored.id, joinedRoot.id, mentionedRoot.id]));
   });
 });
 

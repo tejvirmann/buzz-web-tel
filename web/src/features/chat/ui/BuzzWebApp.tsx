@@ -5,21 +5,25 @@ import buzzAppIcon from "@/assets/app-icon@3x.png";
 import { AgentsView } from "@/features/agents/ui/AgentsView";
 import { useRelayAgents } from "@/features/agents/use-relay-agents";
 import { channelDisplayName } from "@/features/chat/lib/chat-model";
+import type { BuzzChannel, TimelineMessage } from "@/features/chat/lib/chat-types";
+import { conversationDraftKey } from "@/features/chat/lib/conversation-drafts";
 import { useBuzzSession } from "@/features/chat/lib/use-buzz-session";
-import {
-  CreateChannelDialog,
-  NewDmDialog,
-  SearchDialog,
-  SettingsDialog,
-} from "@/features/chat/ui/AppDialogs";
+import { useRelayUserState } from "@/features/chat/lib/use-relay-user-state";
+import { CreateChannelDialog, NewDmDialog, SearchDialog } from "@/features/chat/ui/AppDialogs";
 import { AppNavigation } from "@/features/chat/ui/AppNavigation";
+import {
+  ArchiveChannelDialog,
+  ChannelBrowserDialog,
+} from "@/features/chat/ui/ChannelBrowserDialog";
 import { ChannelHeaderActions } from "@/features/chat/ui/ChannelHeaderActions";
 import { IdentityGate } from "@/features/chat/ui/IdentityGate";
 import { useLeftPanelWidth } from "@/features/chat/ui/LeftPanelSizing";
 import { MemberPanel } from "@/features/chat/ui/MemberPanel";
 import { MessageComposer } from "@/features/chat/ui/MessageComposer";
+import { DeleteMessageDialog, EditMessageDialog } from "@/features/chat/ui/MessageDialogs";
 import { MessageList } from "@/features/chat/ui/MessageList";
 import { useRightPanelWidth } from "@/features/chat/ui/RightPanelSizing";
+import { SettingsDialog } from "@/features/chat/ui/SettingsDialog";
 import { ThreadPanel } from "@/features/chat/ui/ThreadPanel";
 import { type WorkspaceTool, WorkspaceToolPanel } from "@/features/chat/ui/WorkspaceToolPanel";
 import { addCommunityMember, mintCommunityInvite } from "@/features/community/invite-api";
@@ -34,7 +38,7 @@ import { loadRuntimeConfig, type RuntimeConfig } from "@/shared/config/runtime-c
 import { resolveRelayFeatures } from "@/shared/features/relay-features";
 import { t } from "@/shared/i18n";
 
-type DialogName = "create" | "dm" | "search" | "settings" | "invite" | null;
+type DialogName = "create" | "browse" | "dm" | "search" | "settings" | "invite" | null;
 
 function Workspace({
   config,
@@ -53,6 +57,12 @@ function Workspace({
   );
   const session = useBuzzSession({ client, config, pubkey, demo });
   const { state, selectedChannel } = session;
+  const userState = useRelayUserState({
+    client,
+    demo,
+    relayUrl: config.relayUrl,
+    pubkey,
+  });
   const [activeTool, setActiveTool] = useState<WorkspaceTool | null>(null);
   const [dialog, setDialog] = useState<DialogName>(null);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
@@ -60,6 +70,10 @@ function Workspace({
   const [memberPanelOpen, setMemberPanelOpen] = useState(false);
   const [insertMention, setInsertMention] = useState<string | null>(null);
   const [relayHasProjects, setRelayHasProjects] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<BuzzChannel | null>(null);
+  const [editTarget, setEditTarget] = useState<TimelineMessage | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TimelineMessage | null>(null);
+  const [unreadBoundaries, setUnreadBoundaries] = useState<Record<string, number>>({});
   const {
     maximum: maximumNavigationWidth,
     panelWidth: navigationWidth,
@@ -96,19 +110,15 @@ function Workspace({
     configuredAgents: config.agents,
     channels: state.channels,
     ensureProfiles: session.ensureProfiles,
+    readContexts: userState.contexts,
+    markContextRead: userState.markContextRead,
   });
-  const channelUnreadCounts = useMemo(
-    () =>
-      inbox.items.reduce<Record<string, number>>((counts, item) => {
-        if (item.unread && item.channelId) {
-          counts[item.channelId] = (counts[item.channelId] ?? 0) + 1;
-        }
-        return counts;
-      }, {}),
-    [inbox.items],
-  );
   const threadRoot = state.messages.find((message) => message.event.id === threadRootId) ?? null;
   const canCreateChannel = state.communityRole === "owner" || state.communityRole === "admin";
+  const selectedRole = selectedChannel?.members.find(
+    (member) => member.pubkey.toLowerCase() === pubkey.toLowerCase(),
+  )?.role;
+  const canManageChannel = canCreateChannel || selectedRole === "owner" || selectedRole === "admin";
   const connected = state.connectionState === "connected";
   const features = resolveRelayFeatures(config.features, {
     projects: relayHasProjects,
@@ -129,35 +139,66 @@ function Workspace({
     };
   }, [client, config.features.projects, connected, demo]);
 
+  useEffect(() => {
+    if (userState.syncError) toast.error(userState.syncError);
+  }, [userState.syncError]);
+
+  useEffect(() => {
+    const channelId = state.selectedChannelId;
+    if (!channelId || activeTool || !userState.hydrated) return;
+    setUnreadBoundaries((current) =>
+      current[channelId] === undefined
+        ? { ...current, [channelId]: userState.contexts[channelId] ?? 0 }
+        : current,
+    );
+    const latest = state.messages
+      .filter((message) => !message.rootId)
+      .reduce((timestamp, message) => Math.max(timestamp, message.event.created_at), 0);
+    if (latest > 0) inbox.markChannelRead(channelId, latest);
+  }, [
+    activeTool,
+    inbox.markChannelRead,
+    state.messages,
+    state.selectedChannelId,
+    userState.contexts,
+    userState.hydrated,
+  ]);
+
+  useEffect(() => {
+    if (!threadRootId || activeTool || !userState.hydrated) return;
+    const latest = state.messages
+      .filter((message) => message.rootId === threadRootId)
+      .reduce((timestamp, message) => Math.max(timestamp, message.event.created_at), 0);
+    if (latest > 0) inbox.markThreadRead(threadRootId, latest);
+  }, [activeTool, inbox.markThreadRead, state.messages, threadRootId, userState.hydrated]);
+
   const handleSignOut = () => {
     client?.disconnect();
     clearMediaObjectUrls();
     signOut();
   };
   const selectChannel = (channelId: string) => {
-    inbox.markChannelRead(channelId);
+    setUnreadBoundaries((current) => ({
+      ...current,
+      [channelId]: userState.contexts[channelId] ?? 0,
+    }));
     setActiveTool(null);
     setThreadRootId(null);
     setMemberPanelOpen(false);
     session.selectChannel(channelId);
   };
   const toggleTool = (tool: WorkspaceTool) => {
-    if (activeTool === tool && state.selectedChannelId) {
-      inbox.markChannelRead(state.selectedChannelId);
-    }
     setActiveTool((current) => (current === tool ? null : tool));
     setThreadRootId(null);
     setMemberPanelOpen(false);
     setMobileNavigationOpen(false);
   };
   const showMessages = () => {
-    if (state.selectedChannelId) inbox.markChannelRead(state.selectedChannelId);
     setActiveTool(null);
     setMobileNavigationOpen(false);
   };
   const openInboxConversation = (item: InboxItem) => {
     if (!item.channelId) return;
-    inbox.markChannelRead(item.channelId);
     setActiveTool(null);
     setMobileNavigationOpen(false);
     setMemberPanelOpen(false);
@@ -201,7 +242,7 @@ function Workspace({
         communityName={config.communityName}
         connectionState={state.connectionState}
         currentPubkey={pubkey}
-        channelUnreadCounts={channelUnreadCounts}
+        channelUnreadCounts={inbox.channelUnreadCounts}
         inboxUnreadCount={inbox.unreadCount}
         features={features}
         mobileOpen={mobileNavigationOpen}
@@ -212,6 +253,7 @@ function Workspace({
         relayUrl={config.relayUrl}
         selectedChannelId={state.selectedChannelId}
         onCloseMobile={() => setMobileNavigationOpen(false)}
+        onBrowseChannels={() => setDialog("browse")}
         onCreateChannel={() => setDialog("create")}
         onInvite={() => setDialog("invite")}
         onNewDm={() => setDialog("dm")}
@@ -221,6 +263,8 @@ function Workspace({
         onSelectChannel={selectChannel}
         onSettings={() => setDialog("settings")}
         onResize={setNavigationWidth}
+        starredChannelIds={userState.starredChannelIds}
+        mutedChannelIds={userState.mutedChannelIds}
       />
 
       <section className="buzz-content-surface relative flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border">
@@ -252,13 +296,29 @@ function Workspace({
               </div>
               {selectedChannel ? (
                 <ChannelHeaderActions
+                  canArchive={canManageChannel && selectedChannel.type !== "dm"}
                   loading={state.loadingChannels}
                   memberCount={selectedChannel.members.length}
                   membersVisible={!threadRoot && memberPanelOpen}
+                  muted={userState.mutedChannelIds.has(selectedChannel.id)}
+                  starred={userState.starredChannelIds.has(selectedChannel.id)}
+                  onArchive={() => setArchiveTarget(selectedChannel)}
                   onRefresh={() => void session.refreshChannels()}
                   onSearch={() => setDialog("search")}
                   onSettings={() => setDialog("settings")}
                   onToggleMembers={toggleMemberPanel}
+                  onToggleMuted={() =>
+                    userState.setChannelMuted(
+                      selectedChannel.id,
+                      !userState.mutedChannelIds.has(selectedChannel.id),
+                    )
+                  }
+                  onToggleStarred={() =>
+                    userState.setChannelStarred(
+                      selectedChannel.id,
+                      !userState.starredChannelIds.has(selectedChannel.id),
+                    )
+                  }
                 />
               ) : null}
             </header>
@@ -282,12 +342,16 @@ function Workspace({
             {selectedChannel ? (
               <>
                 <MessageList
+                  canModerate={canManageChannel}
                   currentPubkey={pubkey}
                   loading={state.loadingMessages}
                   messages={state.messages}
                   presence={state.presence}
                   profiles={state.profiles}
                   relayUrl={config.relayUrl}
+                  unreadAfter={unreadBoundaries[selectedChannel.id] ?? null}
+                  onDelete={setDeleteTarget}
+                  onEdit={setEditTarget}
                   onOpenThread={(message) => {
                     setActiveTool(null);
                     setMemberPanelOpen(false);
@@ -301,7 +365,9 @@ function Workspace({
                   </div>
                 ) : null}
                 <MessageComposer
+                  key={selectedChannel.id}
                   disabled={!connected}
+                  draftKey={conversationDraftKey(config.relayUrl, pubkey, selectedChannel.id)}
                   insertMention={insertMention}
                   members={selectedChannel.members}
                   placeholder={t("workspace.sendTo", {
@@ -379,7 +445,15 @@ function Workspace({
         ) : threadRoot ? (
           <ThreadPanel
             key={threadRoot.event.id}
+            canModerate={canManageChannel}
+            currentPubkey={pubkey}
             disabled={!connected}
+            draftKey={conversationDraftKey(
+              config.relayUrl,
+              pubkey,
+              selectedChannel?.id ?? "",
+              threadRoot.event.id,
+            )}
             maximumWidth={maximumThreadWidth}
             messages={state.messages}
             members={selectedChannel?.members ?? []}
@@ -390,6 +464,8 @@ function Workspace({
             relayUrl={config.relayUrl}
             root={threadRoot}
             onClose={() => setThreadRootId(null)}
+            onDelete={setDeleteTarget}
+            onEdit={setEditTarget}
             onReact={session.addReaction}
             onResize={setThreadPanelWidth}
             onSend={(content, attachments, replyTarget) =>
@@ -409,6 +485,7 @@ function Workspace({
           />
         ) : selectedChannel && memberPanelOpen ? (
           <MemberPanel
+            canManage={canManageChannel}
             channel={selectedChannel}
             currentPubkey={pubkey}
             maximumWidth={maximumMemberWidth}
@@ -424,6 +501,12 @@ function Workspace({
               setMemberPanelOpen(false);
             }}
             onResize={setMemberPanelWidth}
+            onRemoveMember={(targetPubkey) =>
+              session.removeChannelMember(selectedChannel.id, targetPubkey)
+            }
+            onSetMember={(targetPubkey, role) =>
+              session.setChannelMember(selectedChannel.id, targetPubkey, role)
+            }
           />
         ) : null}
       </section>
@@ -433,6 +516,16 @@ function Workspace({
           allowForum={features.forum}
           onClose={() => setDialog(null)}
           onCreate={session.createChannel}
+        />
+      ) : null}
+      {dialog === "browse" ? (
+        <ChannelBrowserDialog
+          channels={session.discoveredChannels}
+          currentPubkey={pubkey}
+          onClose={() => setDialog(null)}
+          onJoin={session.joinChannel}
+          onSelect={selectChannel}
+          onSetArchived={session.setChannelArchived}
         />
       ) : null}
       {dialog === "dm" ? (
@@ -456,10 +549,20 @@ function Workspace({
       {dialog === "settings" ? (
         <SettingsDialog
           connectionState={state.connectionState}
+          profile={
+            state.profiles[pubkey] ?? {
+              pubkey,
+              name: pubkey.slice(0, 12),
+              about: "",
+              picture: null,
+              isAgent: false,
+            }
+          }
           pubkey={pubkey}
           relayUrl={config.relayUrl}
           onClose={() => setDialog(null)}
-          onSignOut={handleSignOut}
+          onSwitchIdentity={handleSignOut}
+          onUpdateProfile={session.updateProfile}
         />
       ) : null}
       {dialog === "invite" ? (
@@ -486,6 +589,26 @@ function Workspace({
             }
             return mintCommunityInvite(config.relayUrl, options);
           }}
+        />
+      ) : null}
+      {archiveTarget ? (
+        <ArchiveChannelDialog
+          channel={archiveTarget}
+          onArchive={() => session.setChannelArchived(archiveTarget.id, true)}
+          onClose={() => setArchiveTarget(null)}
+        />
+      ) : null}
+      {editTarget ? (
+        <EditMessageDialog
+          message={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSave={(content) => session.editMessage(editTarget, content)}
+        />
+      ) : null}
+      {deleteTarget ? (
+        <DeleteMessageDialog
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => session.deleteMessage(deleteTarget)}
         />
       ) : null}
     </div>
@@ -520,7 +643,13 @@ export function BuzzWebApp() {
   return (
     <IdentityGate config={config}>
       {({ pubkey, signOut, demo }) => (
-        <Workspace config={config} demo={demo} pubkey={pubkey} signOut={signOut} />
+        <Workspace
+          key={`${config.relayUrl}:${pubkey}`}
+          config={config}
+          demo={demo}
+          pubkey={pubkey}
+          signOut={signOut}
+        />
       )}
     </IdentityGate>
   );

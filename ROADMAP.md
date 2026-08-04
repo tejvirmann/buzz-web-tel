@@ -17,6 +17,9 @@ browser client easier to operate safely as an independent open-source project.
 
 ## P0: Collaboration Fundamentals
 
+> **Status:** implemented and deployed to the test environment. Authenticated acceptance against
+> the real Relay is still required before release.
+
 ### Channel and member management
 
 **Target:** add channel discovery, favorites, mute/archive controls, a complete member directory,

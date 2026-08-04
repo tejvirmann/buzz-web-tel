@@ -1,6 +1,6 @@
 {
   "communityName": "Buzz",
-  "relayUrl": "",
+  "relayUrl": "ws://localhost:3000",
   "features": {
     "projects": false,
     "forum": false

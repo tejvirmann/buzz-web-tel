@@ -262,6 +262,36 @@
   object-fit: contain;
 }
 
+.buzz-message-mention {
+  box-sizing: border-box;
+  display: inline-flex;
+  min-height: 1.2rem;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
+  background: hsl(var(--foreground) / 8%);
+  color: hsl(var(--foreground) / 88%);
+  font-size: inherit;
+  font-weight: 600;
+  line-height: 1;
+  vertical-align: baseline;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.buzz-message-mention-icon {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: none;
+}
+
+.buzz-message-mention-prefix {
+  display: inline-block;
+  line-height: 1;
+  transform: translateY(-0.08em);
+}
+
 @media (max-width: 767px) {
   .buzz-content-surface {
     border-radius: 0;

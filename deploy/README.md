@@ -30,7 +30,8 @@ docker compose -f deploy/compose.yml up -d
 docker compose -f deploy/compose.yml ps
 ```
 
-`deploy/config.json` 是 Relay 部署对所有 Web 客户端发布的公开运行时配置，不得写入
+`deploy/config.json` 是 Relay 部署对所有 Web 客户端发布的公开运行时配置。必须把示例
+`relayUrl` 替换为部署实际使用的 `ws://` 或 `wss://` 地址，空值会被拒绝；不得写入
 `nsec`、Relay API token、owner 私钥或其他密钥。`features.projects` 和
 `features.forum` 是 Web 功能开放策略，客户端设置中不提供覆盖入口。即使配置滞后，
 Relay 中已存在 NIP-34 Repo 或 Forum Channel 时，对应入口也会保持可见。macOS 客户端
