@@ -2,11 +2,6 @@ import { Hash, LoaderCircle, LockKeyhole, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { BuzzChannel, SearchHit, UserProfile } from "@/features/chat/lib/chat-types";
 import { Avatar } from "@/features/chat/ui/Avatar";
-import {
-  type PreviewFeatureId,
-  type PreviewFeatureState,
-  WEB_PREVIEW_FEATURES,
-} from "@/shared/features/preview-features";
 import { t } from "@/shared/i18n";
 import { truncatePubkey } from "@/shared/lib/pubkey";
 import { useTheme } from "@/shared/theme/ThemeProvider";
@@ -308,17 +303,13 @@ export function SettingsDialog({
   relayUrl,
   pubkey,
   connectionState,
-  previewFeatures,
   onClose,
-  onSetPreviewFeature,
   onSignOut,
 }: {
   relayUrl: string;
   pubkey: string;
   connectionState: string;
-  previewFeatures: PreviewFeatureState;
   onClose: () => void;
-  onSetPreviewFeature: (id: PreviewFeatureId, enabled: boolean) => void;
   onSignOut: () => void;
 }) {
   const { theme, setTheme } = useTheme();
@@ -342,31 +333,6 @@ export function SettingsDialog({
                     ? t("dialog.dark")
                     : t("dialog.systemTheme")}
               </button>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-2 border-t pt-4">
-          <div className="text-xs font-medium">{t("preview.title")}</div>
-          <p className="text-xs leading-5 text-muted-foreground">{t("preview.description")}</p>
-          <div className="space-y-2 pt-1">
-            {WEB_PREVIEW_FEATURES.map((feature) => (
-              <label
-                key={feature.id}
-                className="flex items-center justify-between gap-4 rounded-md border bg-background/40 px-3 py-2.5"
-              >
-                <span className="min-w-0">
-                  <span className="block text-xs font-medium">{t(feature.nameKey)}</span>
-                  <span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground">
-                    {t(feature.descriptionKey)}
-                  </span>
-                </span>
-                <input
-                  checked={previewFeatures[feature.id]}
-                  className="h-4 w-4 shrink-0 accent-primary"
-                  type="checkbox"
-                  onChange={(event) => onSetPreviewFeature(feature.id, event.target.checked)}
-                />
-              </label>
             ))}
           </div>
         </div>

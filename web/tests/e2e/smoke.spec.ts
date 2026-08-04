@@ -11,6 +11,7 @@ const DEMO_CONFIG = {
   communityName: "Buzz Community",
   relayUrl: "wss://relay.example.com",
   agentControlUrl: "https://buzz.example.com/app/api/agent-control",
+  features: { projects: true, forum: true },
   demoMode: true,
   agents: [
     {
@@ -26,20 +27,15 @@ const DEMO_CONFIG = {
   ],
 };
 
-async function enableDemo(page: Page, { previewFeatures = true } = {}) {
-  if (previewFeatures) {
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        "buzz-feature-overrides-v1",
-        JSON.stringify({ projects: true, forum: true }),
-      );
-    });
-  }
+async function enableDemo(
+  page: Page,
+  { features = DEMO_CONFIG.features }: { features?: { projects: boolean; forum: boolean } } = {},
+) {
   await page.route("**/config.json", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(DEMO_CONFIG),
+      body: JSON.stringify({ ...DEMO_CONFIG, features }),
     });
   });
 }
@@ -103,8 +99,8 @@ test("desktop navigation opens a remote-agent DM", async ({ page }) => {
   await expect(page.getByLabel("Send a message to Codex(remote)")).toBeVisible();
 });
 
-test("preview features stay hidden until enabled in Experiments", async ({ page }) => {
-  await enableDemo(page, { previewFeatures: false });
+test("Relay feature state controls preview navigation without local settings", async ({ page }) => {
+  await enableDemo(page, { features: { projects: false, forum: false } });
   await page.goto("/");
 
   await expect(page.getByRole("button", { name: "Projects" })).toHaveCount(0);
@@ -112,12 +108,8 @@ test("preview features stay hidden until enabled in Experiments", async ({ page 
 
   await page.getByRole("button", { name: "Settings" }).last().click();
   const settings = page.getByRole("dialog", { name: "Settings" });
-  await expect(settings.getByText("Experiments", { exact: true })).toBeVisible();
-  await settings.getByRole("checkbox", { name: /^Projects/ }).check();
-  await expect(page.getByRole("button", { name: "Projects" }).first()).toBeVisible();
-  await settings.getByRole("checkbox", { name: /^Forum Channels/ }).check();
-  await settings.getByRole("button", { name: "Close" }).click();
-  await expect(page.getByText("Forums", { exact: true })).toBeVisible();
+  await expect(settings.getByText("Experiments", { exact: true })).toHaveCount(0);
+  await expect(settings.getByRole("checkbox")).toHaveCount(0);
 });
 
 test("mobile layout exposes the channel drawer", async ({ page }) => {

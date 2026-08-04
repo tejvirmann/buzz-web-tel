@@ -1,5 +1,9 @@
 {
   "communityName": "Buzz",
   "relayUrl": "",
+  "features": {
+    "projects": false,
+    "forum": false
+  },
   "agents": []
 }

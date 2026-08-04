@@ -1,3 +1,4 @@
+import { parseRelayFeatures, type RelayFeatureState } from "@/shared/features/relay-features";
 import { t } from "@/shared/i18n";
 
 export type ConfiguredAgent = {
@@ -11,6 +12,7 @@ export type RuntimeConfig = {
   relayUrl: string;
   agents: ConfiguredAgent[];
   agentControlUrl: string | null;
+  features: RelayFeatureState;
   demoMode: boolean;
 };
 
@@ -74,6 +76,7 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
     relayUrl: normalizeRelayUrl(raw.relayUrl),
     agents,
     agentControlUrl: normalizeAgentControlUrl(raw.agentControlUrl),
+    features: parseRelayFeatures(raw.features),
     demoMode: raw.demoMode === true && import.meta.env.VITE_ENABLE_DEMO === "true",
   };
 }

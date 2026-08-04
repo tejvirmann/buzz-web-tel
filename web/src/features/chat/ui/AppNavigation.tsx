@@ -17,7 +17,7 @@ import type { BuzzChannel, UserProfile } from "@/features/chat/lib/chat-types";
 import { Avatar } from "@/features/chat/ui/Avatar";
 import { LeftPanelResizeHandle } from "@/features/chat/ui/LeftPanelSizing";
 import type { WorkspaceTool } from "@/features/chat/ui/WorkspaceToolPanel";
-import type { PreviewFeatureState } from "@/shared/features/preview-features";
+import type { RelayFeatureState } from "@/shared/features/relay-features";
 import { t } from "@/shared/i18n";
 
 function ConnectionDot({ state }: { state: string }) {
@@ -65,7 +65,7 @@ export function AppNavigation({
   activeTool,
   inboxUnreadCount,
   channelUnreadCounts,
-  previewFeatures,
+  features,
   maximumWidth,
   panelWidth,
   onCloseMobile,
@@ -93,7 +93,7 @@ export function AppNavigation({
   activeTool: WorkspaceTool | null;
   inboxUnreadCount: number;
   channelUnreadCounts: Readonly<Record<string, number>>;
-  previewFeatures: PreviewFeatureState;
+  features: RelayFeatureState;
   maximumWidth: number;
   panelWidth: number;
   onCloseMobile: () => void;
@@ -198,7 +198,7 @@ export function AppNavigation({
                 </span>
               ) : null}
             </button>
-            {previewFeatures.projects ? (
+            {features.projects ? (
               <button
                 aria-label={t("nav.projects")}
                 aria-pressed={activeTool === "repos"}
@@ -266,7 +266,7 @@ export function AppNavigation({
             })}
           </section>
 
-          {previewFeatures.forum ? (
+          {features.forum ? (
             <section className="mt-6">
               <div className="mb-1 flex h-7 items-center px-3 text-[11px] font-medium text-muted-foreground">
                 {t("nav.forums")}
@@ -390,7 +390,7 @@ export function AppNavigation({
         >
           <MessagesSquare className="h-5 w-5" />
         </button>
-        {previewFeatures.projects ? (
+        {features.projects ? (
           <button
             aria-label={t("nav.projects")}
             aria-pressed={activeTool === "repos"}

@@ -251,21 +251,6 @@ const messages = {
   },
   "nav.workflows": { en: "Workflows", "zh-CN": "工作流" },
   "nav.workspace": { en: "Workspace", "zh-CN": "工作区" },
-  "preview.description": {
-    en: "These features are functional but still being refined. Enable them to surface them in Buzz Web.",
-    "zh-CN": "这些功能可以使用，但仍在完善中。启用后才会显示在 Buzz Web 中。",
-  },
-  "preview.forum.description": {
-    en: "Forum-style threaded channels for long-form discussions",
-    "zh-CN": "用于长篇讨论的论坛式线程频道",
-  },
-  "preview.forum.name": { en: "Forum Channels", "zh-CN": "论坛频道" },
-  "preview.projects.description": {
-    en: "Git repository browser and collaboration",
-    "zh-CN": "Git 仓库浏览与协作",
-  },
-  "preview.projects.name": { en: "Projects", "zh-CN": "项目" },
-  "preview.title": { en: "Experiments", "zh-CN": "实验功能" },
   "system.addedBy": { en: "added by {actor}", "zh-CN": "由{actor}添加" },
   "system.archived": { en: "archived this channel", "zh-CN": "归档了此频道" },
   "system.channelCreated": { en: "created this channel", "zh-CN": "创建了此频道" },

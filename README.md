@@ -23,12 +23,18 @@ organization-specific data. For local development against another Relay, set `re
 {
   "communityName": "Buzz",
   "relayUrl": "wss://buzz.example.com",
+  "features": {
+    "projects": false,
+    "forum": false
+  },
   "agents": []
 }
 ```
 
 Agent names and profiles normally come from Relay membership and kind `0` profile events. The
 optional `agents` list only supplies fallback names before those events are available.
+Preview navigation is controlled centrally by the Relay deployment's public `features` object.
+Clients cannot override it in browser settings; omitted or non-boolean flags remain disabled.
 
 ## Authentication
 

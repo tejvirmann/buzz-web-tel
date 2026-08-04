@@ -31,7 +31,6 @@ import { ReposPanel } from "@/features/repos/ui/ReposPanel";
 import { clearMediaObjectUrls } from "@/shared/api/media-client";
 import { BuzzRelayClient } from "@/shared/api/relay-client";
 import { loadRuntimeConfig, type RuntimeConfig } from "@/shared/config/runtime-config";
-import { usePreviewFeatures } from "@/shared/features/preview-features";
 import { t } from "@/shared/i18n";
 
 type DialogName = "create" | "dm" | "search" | "settings" | "invite" | null;
@@ -63,7 +62,6 @@ function Workspace({
   const [threadRootId, setThreadRootId] = useState<string | null>(null);
   const [memberPanelOpen, setMemberPanelOpen] = useState(defaultMemberPanelVisibility);
   const [insertMention, setInsertMention] = useState<string | null>(null);
-  const previewFeatures = usePreviewFeatures();
   const {
     maximum: maximumNavigationWidth,
     panelWidth: navigationWidth,
@@ -103,10 +101,6 @@ function Workspace({
   const threadRoot = state.messages.find((message) => message.event.id === threadRootId) ?? null;
   const canCreateChannel = state.communityRole === "owner" || state.communityRole === "admin";
   const connected = state.connectionState === "connected";
-
-  useEffect(() => {
-    if (activeTool === "repos" && !previewFeatures.enabled.projects) setActiveTool(null);
-  }, [activeTool, previewFeatures.enabled.projects]);
 
   const handleSignOut = () => {
     client?.disconnect();
@@ -181,7 +175,7 @@ function Workspace({
         currentPubkey={pubkey}
         channelUnreadCounts={channelUnreadCounts}
         inboxUnreadCount={inbox.unreadCount}
-        previewFeatures={previewFeatures.enabled}
+        features={config.features}
         mobileOpen={mobileNavigationOpen}
         maximumWidth={maximumNavigationWidth}
         panelWidth={navigationWidth}
@@ -401,7 +395,7 @@ function Workspace({
 
       {dialog === "create" ? (
         <CreateChannelDialog
-          allowForum={previewFeatures.enabled.forum}
+          allowForum={config.features.forum}
           onClose={() => setDialog(null)}
           onCreate={session.createChannel}
         />
@@ -427,11 +421,9 @@ function Workspace({
       {dialog === "settings" ? (
         <SettingsDialog
           connectionState={state.connectionState}
-          previewFeatures={previewFeatures.enabled}
           pubkey={pubkey}
           relayUrl={config.relayUrl}
           onClose={() => setDialog(null)}
-          onSetPreviewFeature={previewFeatures.setEnabled}
           onSignOut={handleSignOut}
         />
       ) : null}

@@ -28,7 +28,15 @@ docker compose -f deploy/compose.yml up -d
 docker compose -f deploy/compose.yml ps
 ```
 
-`deploy/config.json` 是可热更新的公开运行时配置，不得写入 `nsec`、Relay API token、owner 私钥或其他密钥。修改后刷新浏览器即可生效，无需重新构建镜像。
+`deploy/config.json` 是 Relay 部署对所有 Web 客户端发布的公开运行时配置，不得写入
+`nsec`、Relay API token、owner 私钥或其他密钥。`features.projects` 和
+`features.forum` 是实验功能的唯一 Web 端状态来源，未显式设为 `true` 时不显示，
+客户端设置中不提供覆盖入口。修改文件后需要确保文件级 bind mount 已刷新；最稳妥的
+方式是仅重建 Web 容器：
+
+```bash
+docker compose -f deploy/compose.yml up -d --no-deps --force-recreate web
+```
 
 ## 验证
 
