@@ -191,26 +191,30 @@ test("desktop channel panel shrinks left and restores its saved width", async ({
   expect(Math.abs(restored - resized)).toBeLessThan(2);
 });
 
-test("member and thread panels share a resizable persistent width", async ({ page }) => {
+test("member and thread panels open at independent persistent widths", async ({ page }) => {
   await page.setViewportSize({ width: 1720, height: 900 });
   await enableDemo(page);
   await page.goto("/");
 
+  await expect(page.getByRole("separator", { name: "Resize member panel" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Members: 3" }).click();
   const separator = page.getByRole("separator", { name: "Resize member panel" });
   await expect(separator).toBeVisible();
   const before = await separator.evaluate(
     (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
   );
+  expect(before).toBeGreaterThanOrEqual(240);
+  expect(before).toBeLessThanOrEqual(280);
   const handle = await separator.boundingBox();
   expect(handle).not.toBeNull();
   await page.mouse.move((handle?.x ?? 0) + 4, (handle?.y ?? 0) + 100);
   await page.mouse.down();
-  await page.mouse.move((handle?.x ?? 0) - 180, (handle?.y ?? 0) + 100);
+  await page.mouse.move((handle?.x ?? 0) - 220, (handle?.y ?? 0) + 100);
   await page.mouse.up();
-  const resized = await separator.evaluate(
+  const memberResized = await separator.evaluate(
     (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
   );
-  expect(resized).toBeGreaterThan(before + 150);
+  expect(memberResized).toBeGreaterThan(before + 190);
 
   const messageRow = page.locator("article").filter({
     hasText: "Relay is healthy. Postgres, Redis, MinIO, and Git are available.",
@@ -220,10 +224,13 @@ test("member and thread panels share a resizable persistent width", async ({ pag
 
   const threadSeparator = page.getByRole("separator", { name: "Resize thread panel" });
   await expect(threadSeparator).toBeVisible();
-  const inherited = await threadSeparator.evaluate(
+  await expect(separator).toHaveCount(0);
+  const threadDefault = await threadSeparator.evaluate(
     (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
   );
-  expect(Math.abs(inherited - resized)).toBeLessThan(2);
+  expect(threadDefault).toBeGreaterThanOrEqual(360);
+  expect(threadDefault).toBeLessThanOrEqual(400);
+  expect(threadDefault).toBeLessThan(memberResized - 50);
   const threadHandle = await threadSeparator.boundingBox();
   expect(threadHandle).not.toBeNull();
   await page.mouse.move((threadHandle?.x ?? 0) + 4, (threadHandle?.y ?? 0) + 100);
@@ -233,23 +240,39 @@ test("member and thread panels share a resizable persistent width", async ({ pag
   const threadResized = await threadSeparator.evaluate(
     (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
   );
-  expect(threadResized).toBeGreaterThan(inherited + 80);
+  expect(threadResized).toBeGreaterThan(threadDefault + 80);
   await page.screenshot({
     path: "test-results/visual/buzz-web-thread-resized.png",
     animations: "disabled",
   });
 
   await page.getByRole("button", { name: "Close thread" }).click();
-  const shared = await page
-    .getByRole("separator", { name: "Resize member panel" })
-    .evaluate((element) => element.parentElement?.getBoundingClientRect().width ?? 0);
-  expect(Math.abs(shared - threadResized)).toBeLessThan(2);
+  await expect(threadSeparator).toHaveCount(0);
+  await expect(separator).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Members: 3" }).click();
+  const restoredMember = await separator.evaluate(
+    (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
+  );
+  expect(Math.abs(restoredMember - memberResized)).toBeLessThan(2);
 
   await page.reload();
-  const restored = await page
-    .getByRole("separator", { name: "Resize member panel" })
-    .evaluate((element) => element.parentElement?.getBoundingClientRect().width ?? 0);
-  expect(Math.abs(restored - threadResized)).toBeLessThan(2);
+  await expect(separator).toHaveCount(0);
+  await page.getByRole("button", { name: "Members: 3" }).click();
+  const persistedMember = await separator.evaluate(
+    (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
+  );
+  expect(Math.abs(persistedMember - memberResized)).toBeLessThan(2);
+
+  const restoredMessageRow = page.locator("article").filter({
+    hasText: "Relay is healthy. Postgres, Redis, MinIO, and Git are available.",
+  });
+  await restoredMessageRow.hover();
+  await restoredMessageRow.getByRole("button", { name: "Reply in thread" }).click();
+  const persistedThread = await threadSeparator.evaluate(
+    (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
+  );
+  expect(Math.abs(persistedThread - threadResized)).toBeLessThan(2);
 });
 
 test("message reactions toggle once and use the Mac-style capsule shape", async ({ page }) => {

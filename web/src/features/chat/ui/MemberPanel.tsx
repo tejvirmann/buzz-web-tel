@@ -11,6 +11,7 @@ export function MemberPanel({
   relayUrl,
   currentPubkey,
   maximumWidth,
+  minimumWidth,
   panelWidth,
   onClose,
   onMention,
@@ -23,6 +24,7 @@ export function MemberPanel({
   relayUrl: string;
   currentPubkey: string;
   maximumWidth: number;
+  minimumWidth: number;
   panelWidth: number;
   onClose: () => void;
   onMention: (name: string) => void;
@@ -47,6 +49,7 @@ export function MemberPanel({
       <RightPanelResizeHandle
         label={t("member.resize")}
         maximum={maximumWidth}
+        minimum={minimumWidth}
         panelWidth={panelWidth}
         onResize={onResize}
       />

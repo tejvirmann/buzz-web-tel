@@ -30,9 +30,11 @@ docker compose -f deploy/compose.yml ps
 
 `deploy/config.json` 是 Relay 部署对所有 Web 客户端发布的公开运行时配置，不得写入
 `nsec`、Relay API token、owner 私钥或其他密钥。`features.projects` 和
-`features.forum` 是实验功能的唯一 Web 端状态来源，未显式设为 `true` 时不显示，
-客户端设置中不提供覆盖入口。修改文件后需要确保文件级 bind mount 已刷新；最稳妥的
-方式是仅重建 Web 容器：
+`features.forum` 是 Web 功能开放策略，客户端设置中不提供覆盖入口。即使配置滞后，
+Relay 中已存在 NIP-34 Repo 或 Forum Channel 时，对应入口也会保持可见。macOS 客户端
+的 Experiments 开关仅存储在该设备的 `localStorage`，不会发布到 Relay，因此不能作为
+Web 的跨设备状态来源。修改文件后需要确保文件级 bind mount 已刷新；最稳妥的方式是
+仅重建 Web 容器：
 
 ```bash
 docker compose -f deploy/compose.yml up -d --no-deps --force-recreate web

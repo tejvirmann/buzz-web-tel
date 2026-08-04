@@ -31,13 +31,10 @@ import { ReposPanel } from "@/features/repos/ui/ReposPanel";
 import { clearMediaObjectUrls } from "@/shared/api/media-client";
 import { BuzzRelayClient } from "@/shared/api/relay-client";
 import { loadRuntimeConfig, type RuntimeConfig } from "@/shared/config/runtime-config";
+import { resolveRelayFeatures } from "@/shared/features/relay-features";
 import { t } from "@/shared/i18n";
 
 type DialogName = "create" | "dm" | "search" | "settings" | "invite" | null;
-
-function defaultMemberPanelVisibility(): boolean {
-  return typeof window !== "undefined" && window.matchMedia("(min-width: 1536px)").matches;
-}
 
 function Workspace({
   config,
@@ -60,14 +57,26 @@ function Workspace({
   const [dialog, setDialog] = useState<DialogName>(null);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [threadRootId, setThreadRootId] = useState<string | null>(null);
-  const [memberPanelOpen, setMemberPanelOpen] = useState(defaultMemberPanelVisibility);
+  const [memberPanelOpen, setMemberPanelOpen] = useState(false);
   const [insertMention, setInsertMention] = useState<string | null>(null);
+  const [relayHasProjects, setRelayHasProjects] = useState(false);
   const {
     maximum: maximumNavigationWidth,
     panelWidth: navigationWidth,
     setPanelWidth: setNavigationWidth,
   } = useLeftPanelWidth();
-  const { maximum, panelWidth, setPanelWidth } = useRightPanelWidth();
+  const {
+    maximum: maximumMemberWidth,
+    minimum: minimumMemberWidth,
+    panelWidth: memberPanelWidth,
+    setPanelWidth: setMemberPanelWidth,
+  } = useRightPanelWidth("member");
+  const {
+    maximum: maximumThreadWidth,
+    minimum: minimumThreadWidth,
+    panelWidth: threadPanelWidth,
+    setPanelWidth: setThreadPanelWidth,
+  } = useRightPanelWidth("thread");
   const relayAgents = useRelayAgents({
     client,
     demo,
@@ -101,6 +110,24 @@ function Workspace({
   const threadRoot = state.messages.find((message) => message.event.id === threadRootId) ?? null;
   const canCreateChannel = state.communityRole === "owner" || state.communityRole === "admin";
   const connected = state.connectionState === "connected";
+  const features = resolveRelayFeatures(config.features, {
+    projects: relayHasProjects,
+    forum: state.channels.some((channel) => channel.type === "forum"),
+  });
+
+  useEffect(() => {
+    if (!client || demo || config.features.projects || !connected) return;
+    let cancelled = false;
+    void client
+      .query({ kinds: [30617], limit: 1 })
+      .then((events) => {
+        if (!cancelled) setRelayHasProjects(events.length > 0);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [client, config.features.projects, connected, demo]);
 
   const handleSignOut = () => {
     client?.disconnect();
@@ -111,7 +138,7 @@ function Workspace({
     inbox.markChannelRead(channelId);
     setActiveTool(null);
     setThreadRootId(null);
-    if (!defaultMemberPanelVisibility()) setMemberPanelOpen(false);
+    setMemberPanelOpen(false);
     session.selectChannel(channelId);
   };
   const toggleTool = (tool: WorkspaceTool) => {
@@ -142,6 +169,7 @@ function Workspace({
       await session.openDm(targetPubkey);
       setActiveTool(null);
       setThreadRootId(null);
+      setMemberPanelOpen(false);
     } catch (openError) {
       toast.error(openError instanceof Error ? openError.message : t("error.dmOpen"));
     }
@@ -175,7 +203,7 @@ function Workspace({
         currentPubkey={pubkey}
         channelUnreadCounts={channelUnreadCounts}
         inboxUnreadCount={inbox.unreadCount}
-        features={config.features}
+        features={features}
         mobileOpen={mobileNavigationOpen}
         maximumWidth={maximumNavigationWidth}
         panelWidth={navigationWidth}
@@ -259,6 +287,7 @@ function Workspace({
                   relayUrl={config.relayUrl}
                   onOpenThread={(message) => {
                     setActiveTool(null);
+                    setMemberPanelOpen(false);
                     setThreadRootId(message.event.id);
                   }}
                   onReact={session.addReaction}
@@ -348,17 +377,18 @@ function Workspace({
           <ThreadPanel
             key={threadRoot.event.id}
             disabled={!connected}
-            maximumWidth={maximum}
+            maximumWidth={maximumThreadWidth}
             messages={state.messages}
             members={selectedChannel?.members ?? []}
-            panelWidth={panelWidth}
+            minimumWidth={minimumThreadWidth}
+            panelWidth={threadPanelWidth}
             presence={state.presence}
             profiles={state.profiles}
             relayUrl={config.relayUrl}
             root={threadRoot}
             onClose={() => setThreadRootId(null)}
             onReact={session.addReaction}
-            onResize={setPanelWidth}
+            onResize={setThreadPanelWidth}
             onSend={(content, attachments, replyTarget) =>
               session.sendMessage(content, attachments, {
                 id: replyTarget.event.id,
@@ -378,8 +408,9 @@ function Workspace({
           <MemberPanel
             channel={selectedChannel}
             currentPubkey={pubkey}
-            maximumWidth={maximum}
-            panelWidth={panelWidth}
+            maximumWidth={maximumMemberWidth}
+            minimumWidth={minimumMemberWidth}
+            panelWidth={memberPanelWidth}
             presence={state.presence}
             profiles={state.profiles}
             relayUrl={config.relayUrl}
@@ -387,15 +418,16 @@ function Workspace({
             onMention={setInsertMention}
             onOpenDm={async (target) => {
               await session.openDm(target);
+              setMemberPanelOpen(false);
             }}
-            onResize={setPanelWidth}
+            onResize={setMemberPanelWidth}
           />
         ) : null}
       </section>
 
       {dialog === "create" ? (
         <CreateChannelDialog
-          allowForum={config.features.forum}
+          allowForum={features.forum}
           onClose={() => setDialog(null)}
           onCreate={session.createChannel}
         />

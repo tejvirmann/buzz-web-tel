@@ -34,7 +34,11 @@ organization-specific data. For local development against another Relay, set `re
 Agent names and profiles normally come from Relay membership and kind `0` profile events. The
 optional `agents` list only supplies fallback names before those events are available.
 Preview navigation is controlled centrally by the Relay deployment's public `features` object.
-Clients cannot override it in browser settings; omitted or non-boolean flags remain disabled.
+Clients cannot override it in browser settings; omitted or non-boolean flags remain disabled unless
+matching content already exists on the Relay. A NIP-34 repository announcement keeps Projects
+visible, and an existing forum channel keeps Forums visible, even if deployment configuration is
+stale. Buzz Desktop's Experiments switches are intentionally device-local `localStorage` values and
+are not published to the Relay, so changing one in the macOS app cannot directly change Web policy.
 
 ## Authentication
 

@@ -21,6 +21,7 @@ export function ThreadPanel({
   relayUrl,
   disabled,
   maximumWidth,
+  minimumWidth,
   panelWidth,
   onClose,
   onReact,
@@ -36,6 +37,7 @@ export function ThreadPanel({
   relayUrl: string;
   disabled: boolean;
   maximumWidth: number;
+  minimumWidth: number;
   panelWidth: number;
   onClose: () => void;
   onReact: (message: TimelineMessage, emoji: string) => Promise<void>;
@@ -76,6 +78,7 @@ export function ThreadPanel({
       <RightPanelResizeHandle
         label={t("thread.resize")}
         maximum={maximumWidth}
+        minimum={minimumWidth}
         panelWidth={panelWidth}
         onResize={onResize}
       />
