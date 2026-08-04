@@ -11,7 +11,6 @@ const messages = {
   "common.search": { en: "Search", "zh-CN": "搜索" },
   "common.settings": { en: "Settings", "zh-CN": "设置" },
   "agents.addTo": { en: "Add to #{channel}", "zh-CN": "加入 #{channel}" },
-  "agents.add": { en: "Add agent", "zh-CN": "添加 Agent" },
   "agents.away": { en: "Away", "zh-CN": "离开" },
   "agents.backToList": { en: "Back to agents", "zh-CN": "返回 Agent 列表" },
   "agents.capabilities": { en: "Capabilities", "zh-CN": "能力" },
@@ -31,14 +30,6 @@ const messages = {
   "agents.offline": { en: "Offline", "zh-CN": "离线" },
   "agents.online": { en: "Online", "zh-CN": "在线" },
   "agents.remote": { en: "Remote", "zh-CN": "远程" },
-  "agents.remoteAddUnavailable": {
-    en: "Register remote agents with the Relay before managing them here",
-    "zh-CN": "请先在 Relay 注册远程 Agent",
-  },
-  "agents.remoteStopUnavailable": {
-    en: "Remote agents must be stopped on their host",
-    "zh-CN": "远程 Agent 需要在运行主机上停止",
-  },
   "agents.removeFrom": { en: "Remove from #{channel}", "zh-CN": "移出 #{channel}" },
   "agents.respondAllowlist": { en: "Allowlisted members", "zh-CN": "允许名单成员" },
   "agents.respondAnyone": { en: "Anyone", "zh-CN": "所有人" },
@@ -48,7 +39,6 @@ const messages = {
   "agents.runningCount": { en: "{count} running", "zh-CN": "{count} 个运行中" },
   "agents.search": { en: "Search agents", "zh-CN": "搜索 Agent" },
   "agents.start": { en: "Start {name}", "zh-CN": "启动 {name}" },
-  "agents.stopRunning": { en: "Stop running agents", "zh-CN": "停止运行中的 Agent" },
   "agents.subtitle": {
     en: "Set up and manage your agents.",
     "zh-CN": "设置和管理你的 Agent。",
@@ -191,7 +181,6 @@ const messages = {
   "repos.owner": { en: "Owner", "zh-CN": "所有者" },
   "repos.overview": { en: "Overview", "zh-CN": "概览" },
   "repos.people": { en: "People", "zh-CN": "参与者" },
-  "repos.publish": { en: "Publish a project", "zh-CN": "发布项目" },
   "repos.pullRequests": { en: "Pull Requests", "zh-CN": "Pull Requests" },
   "repos.public": { en: "Public", "zh-CN": "公开" },
   "repos.search": { en: "Find a repository", "zh-CN": "搜索仓库" },

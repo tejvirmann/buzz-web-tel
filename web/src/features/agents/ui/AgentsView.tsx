@@ -1,6 +1,5 @@
 import {
   ArrowLeft,
-  CircleStop,
   LoaderCircle,
   MessageSquare,
   MoreVertical,
@@ -338,15 +337,6 @@ export function AgentsView({
               ) : null}
             </div>
             <button
-              className="inline-flex h-9 items-center gap-2 rounded-md border bg-background/25 px-3 text-xs font-medium disabled:opacity-50"
-              disabled
-              title={t("agents.remoteStopUnavailable")}
-              type="button"
-            >
-              <CircleStop className="h-4 w-4" />
-              {t("agents.stopRunning")}
-            </button>
-            <button
               aria-label={t("common.refresh")}
               className="buzz-icon-button"
               disabled={loading}
@@ -460,16 +450,6 @@ export function AgentsView({
                 </article>
               );
             })}
-
-            <button
-              aria-label={t("agents.add")}
-              className="flex min-h-[300px] items-center justify-center rounded-lg border border-dashed text-muted-foreground disabled:opacity-65"
-              disabled
-              title={t("agents.remoteAddUnavailable")}
-              type="button"
-            >
-              <Plus className="h-7 w-7" />
-            </button>
           </div>
 
           {loading && !agents.length ? (

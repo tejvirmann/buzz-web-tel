@@ -401,6 +401,7 @@ test("workspace tools replace chat while preserving channel navigation", async (
   await expect(page).toHaveURL(/\/$/);
   await expect(reposPanel).toBeVisible();
   await expect(reposPanel.getByRole("heading", { name: "Projects" })).toBeVisible();
+  await expect(reposPanel.getByRole("button", { name: "Publish a project" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "general", exact: true })).toHaveCount(0);
   await expect(composer).toHaveCount(0);
   await expect(page.getByRole("button", { name: "general", exact: true })).toBeVisible();
@@ -467,6 +468,8 @@ test("remote agents can be inspected, assigned to channels, and messaged", async
   await expect(page.getByRole("heading", { name: "general", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "general", exact: true })).toBeVisible();
   await expect(agentsPanel.getByText("Codex(remote)", { exact: true })).toHaveCount(1);
+  await expect(agentsPanel.getByRole("button", { name: "Add agent" })).toHaveCount(0);
+  await expect(agentsPanel.getByRole("button", { name: "Stop running agents" })).toHaveCount(0);
 
   await agentsPanel.getByRole("button", { name: "Manage Codex(remote)" }).first().click();
   await expect(agentsPanel.getByRole("button", { name: "Back to agents" })).toBeVisible();

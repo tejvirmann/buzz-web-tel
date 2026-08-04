@@ -10,7 +10,6 @@ import {
   GitPullRequest,
   LoaderCircle,
   MessageSquare,
-  Plus,
   Radio,
   RefreshCw,
   Search,
@@ -358,15 +357,6 @@ export function ReposPanel({
                 </button>
               ))}
             </div>
-            <button
-              aria-label={t("repos.publish")}
-              className="mb-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background disabled:opacity-55"
-              disabled
-              title={t("repos.publish")}
-              type="button"
-            >
-              <Plus className="h-5 w-5" />
-            </button>
           </div>
         ) : null}
 
