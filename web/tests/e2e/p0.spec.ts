@@ -24,14 +24,24 @@ async function useConfig(page: Page, config: Record<string, unknown>) {
   });
 }
 
-async function openChannelActions(page: Page) {
-  await page.getByRole("button", { name: "Channel actions" }).click();
-  return page.getByRole("menu", { name: "Channel actions" });
+async function openChannelDetails(page: Page) {
+  await page.getByRole("button", { name: "Channel details" }).click();
+  const details = page.getByRole("complementary", { name: "Channel details" });
+  await expect(details).toBeVisible();
+  return details;
 }
 
 async function openSettings(page: Page) {
-  await page.getByRole("button", { name: "Settings" }).last().click();
-  return page.getByRole("dialog", { name: "Settings" });
+  const settings = page.getByTestId("workspace-tool-settings");
+  if (!(await settings.isVisible().catch(() => false))) {
+    await page.getByRole("button", { name: "Profile menu" }).click();
+    await page
+      .getByRole("menu", { name: "Profile menu" })
+      .getByRole("menuitem", { name: "Settings" })
+      .click();
+  }
+  await expect(settings).toBeVisible();
+  return settings;
 }
 
 async function createIdentity(page: Page, passphrase: string) {
@@ -44,12 +54,20 @@ async function createIdentity(page: Page, passphrase: string) {
     )
     .check();
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Settings" }).last()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Profile menu" })).toBeVisible();
 }
 
 async function activePubkey(page: Page): Promise<string> {
   const settings = await openSettings(page);
-  const value = (await settings.locator("dd").nth(2).textContent())?.trim() ?? "";
+  await settings.getByRole("button", { name: "Identity" }).click();
+  const value =
+    (
+      await settings
+        .locator("dt")
+        .filter({ hasText: "Public key" })
+        .locator("xpath=following-sibling::dd[1]")
+        .textContent()
+    )?.trim() ?? "";
   expect(value).toMatch(/^[0-9a-f]{64}$/);
   return value;
 }
@@ -67,10 +85,9 @@ test("channel discovery, shared preferences, archive, and member management work
   await expect(page.getByRole("heading", { name: "product" })).toBeVisible();
 
   await page.getByRole("button", { name: "general", exact: true }).click();
-  let menu = await openChannelActions(page);
-  await menu.getByRole("menuitem", { name: "Add to favorites" }).click();
-  menu = await openChannelActions(page);
-  await menu.getByRole("menuitem", { name: "Mute channel" }).click();
+  let details = await openChannelDetails(page);
+  await details.getByRole("button", { name: "Add to favorites" }).click();
+  await details.getByRole("button", { name: "Mute channel" }).click();
   await expect
     .poll(() =>
       page.evaluate((channelId) => {
@@ -88,16 +105,17 @@ test("channel discovery, shared preferences, archive, and member management work
     .toBe(true);
 
   await page.reload();
-  menu = await openChannelActions(page);
-  await expect(menu.getByRole("menuitem", { name: "Remove from favorites" })).toBeVisible();
-  await expect(menu.getByRole("menuitem", { name: "Unmute channel" })).toBeVisible();
-  await page.keyboard.press("Escape");
+  details = await openChannelDetails(page);
+  await expect(details.getByRole("button", { name: "Remove from favorites" })).toBeVisible();
+  await expect(details.getByRole("button", { name: "Unmute channel" })).toBeVisible();
+  await details.getByRole("button", { name: "Close channel details" }).click();
 
   await page.getByRole("button", { name: "Members: 3" }).click();
-  await page.getByRole("button", { name: "Add member" }).click();
-  await page.getByLabel("Member public key").fill("c".repeat(64));
-  await page.getByLabel("Role").selectOption("guest");
-  await page.getByRole("button", { name: "Add member" }).last().click();
+  const members = page.getByRole("dialog", { name: "Members · 3" });
+  await members.getByRole("button", { name: "Add member" }).click();
+  await members.getByLabel("Member public key").fill("c".repeat(64));
+  await members.getByLabel("Role").selectOption("guest");
+  await members.getByRole("button", { name: "Add member" }).last().click();
   const memberName = "cccccccc…cccc";
   const roleSelect = page.getByRole("combobox", { name: `Change ${memberName}'s role` });
   await expect(roleSelect).toHaveValue("guest");
@@ -109,10 +127,10 @@ test("channel discovery, shared preferences, archive, and member management work
   const removeDialog = page.getByRole("dialog", { name: "Remove member" });
   await removeDialog.getByRole("button", { name: "Remove member" }).click();
   await expect(page.getByText(memberName, { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Close members" }).click();
+  await members.getByRole("button", { name: "Close" }).click();
 
-  menu = await openChannelActions(page);
-  await menu.getByRole("menuitem", { name: "Archive channel" }).click();
+  details = await openChannelDetails(page);
+  await details.getByRole("button", { name: "Archive channel" }).click();
   const archiveDialog = page.getByRole("dialog", { name: "Archive channel" });
   await archiveDialog.getByRole("button", { name: "Archive channel" }).click();
   await expect(page.getByRole("button", { name: "general", exact: true })).toHaveCount(0);
@@ -163,7 +181,11 @@ test("message lifecycle, drafts, thread drafts, and profile editing survive navi
   const ownMessageId = await ownMessage.getAttribute("data-message-id");
   expect(ownMessageId).toBeTruthy();
   await ownMessage.hover();
-  await ownMessage.getByRole("button", { name: "Edit message" }).click();
+  await ownMessage.getByRole("button", { name: "More message actions" }).click();
+  await ownMessage
+    .getByRole("menu", { name: "More message actions" })
+    .getByRole("menuitem", { name: "Edit message" })
+    .click();
   const editDialog = page.getByRole("dialog", { name: "Edit message" });
   await editDialog.getByLabel("Message").fill("Document the tested P0 deployment.");
   await editDialog.getByRole("button", { name: "Save" }).click();
@@ -171,25 +193,38 @@ test("message lifecycle, drafts, thread drafts, and profile editing survive navi
   await expect(editedRow).toContainText("Document the tested P0 deployment.");
   await expect(editedRow).toContainText("edited");
   await editedRow.hover();
-  await editedRow.getByRole("button", { name: "Delete message" }).click();
+  await editedRow.getByRole("button", { name: "More message actions" }).click();
+  await editedRow
+    .getByRole("menu", { name: "More message actions" })
+    .getByRole("menuitem", { name: "Delete message" })
+    .click();
   const deleteDialog = page.getByRole("dialog", { name: "Delete message" });
   await deleteDialog.getByRole("button", { name: "Delete message" }).click();
   await expect(editedRow).toHaveAttribute("data-deleted", "true");
   await expect(editedRow).toContainText("This message was deleted");
-  await expect(editedRow.getByRole("button", { name: "Edit message" })).toHaveCount(0);
+  await expect(editedRow.getByRole("button", { name: "More message actions" })).toHaveCount(0);
 
   const settings = await openSettings(page);
+  await expect(settings.getByRole("heading", { name: "Profile" })).toBeVisible();
+  await settings.getByRole("button", { name: "Appearance" }).click();
+  await expect(settings.getByRole("button", { name: "System" })).toBeVisible();
+  await settings.getByRole("button", { name: "Invites" }).click();
+  await expect(settings.getByRole("button", { name: "Invite people" })).toBeVisible();
+  await settings.getByRole("button", { name: "Identity" }).click();
   await expect(settings.getByText("Connected", { exact: true })).toBeVisible();
-  await settings.getByLabel("Picture URL").fill("javascript:alert(1)");
-  await settings.getByRole("button", { name: "Save profile" }).click();
-  await expect(settings.getByText("The picture URL must use HTTP or HTTPS.")).toBeVisible();
-  await settings.getByLabel("Display name").fill("Alex Web");
-  await settings.getByLabel("About").fill("P0 verification profile");
-  await settings.getByLabel("Picture URL").fill("https://buzz.example.com/alex.png");
-  await settings.getByRole("button", { name: "Save profile" }).click();
-  await expect(settings.getByText("The picture URL must use HTTP or HTTPS.")).toHaveCount(0);
-  await settings.getByRole("button", { name: "Close" }).click();
-  await expect(page.getByRole("button", { name: "Settings" }).last()).toContainText("Alex Web");
+  await settings.getByRole("button", { name: "Profile", exact: true }).click();
+  await settings.getByRole("button", { name: "Edit profile" }).click();
+  const profileEditor = page.getByRole("dialog", { name: "Edit profile" });
+  await profileEditor.getByLabel("Picture URL").fill("javascript:alert(1)");
+  await profileEditor.getByRole("button", { name: "Save profile" }).click();
+  await expect(profileEditor.getByText("The picture URL must use HTTP or HTTPS.")).toBeVisible();
+  await profileEditor.getByLabel("Display name").fill("Alex Web");
+  await profileEditor.getByLabel("About").fill("P0 verification profile");
+  await profileEditor.getByLabel("Picture URL").fill("https://buzz.example.com/alex.png");
+  await profileEditor.getByRole("button", { name: "Save profile" }).click();
+  await expect(profileEditor).toHaveCount(0);
+  await settings.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByRole("button", { name: "Profile menu" })).toContainText("Alex Web");
 });
 
 test("local identities can be created, switched, backed up, deleted, and restored", async ({
@@ -209,7 +244,7 @@ test("local identities can be created, switched, backed up, deleted, and restore
   const firstVaultPassphrase = "first vault passphrase";
   await createIdentity(page, firstVaultPassphrase);
   const firstPubkey = await activePubkey(page);
-  let settings = page.getByRole("dialog", { name: "Settings" });
+  let settings = page.getByTestId("workspace-tool-settings");
   await settings.getByRole("button", { name: "Create encrypted backup" }).click();
   await settings.getByLabel("Backup passphrase").fill("backup passphrase 123");
   await settings.getByLabel("Confirm passphrase").fill("backup passphrase 123");
@@ -225,7 +260,7 @@ test("local identities can be created, switched, backed up, deleted, and restore
   await createIdentity(page, "second vault passphrase");
   const secondPubkey = await activePubkey(page);
   expect(secondPubkey).not.toBe(firstPubkey);
-  settings = page.getByRole("dialog", { name: "Settings" });
+  settings = page.getByTestId("workspace-tool-settings");
   await settings.getByRole("button", { name: "Switch identity" }).click();
 
   const firstLabel = `${firstPubkey.slice(0, 12)}...${firstPubkey.slice(-8)}`;
@@ -233,7 +268,7 @@ test("local identities can be created, switched, backed up, deleted, and restore
   await page.getByLabel("Vault passphrase").fill(firstVaultPassphrase);
   await page.getByRole("button", { name: "Unlock" }).click();
   expect(await activePubkey(page)).toBe(firstPubkey);
-  settings = page.getByRole("dialog", { name: "Settings" });
+  settings = page.getByTestId("workspace-tool-settings");
   await settings.getByRole("button", { name: "Switch identity" }).click();
 
   page.once("dialog", (dialog) => void dialog.accept());
@@ -282,7 +317,7 @@ test("NIP-07 login waits for an extension injected after page load", async ({ pa
     }, 300);
   }, "d".repeat(64));
   await extensionLogin.click();
-  await expect(page.getByRole("button", { name: "Settings" }).last()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Profile menu" })).toBeVisible();
 });
 
 test("P0 controls use Simplified Chinese in a Chinese browser", async ({ browser }) => {
@@ -300,11 +335,26 @@ test("P0 controls use Simplified Chinese in a Chinese browser", async ({ browser
     hasText: "Document the Web client deployment as well.",
   });
   await ownMessage.hover();
-  await expect(ownMessage.getByRole("button", { name: "编辑消息" })).toBeVisible();
-  await page.getByRole("button", { name: "设置" }).last().click();
-  const settings = page.getByRole("dialog", { name: "设置" });
+  await ownMessage.getByRole("button", { name: "更多消息操作" }).click();
+  await expect(
+    ownMessage
+      .getByRole("menu", { name: "更多消息操作" })
+      .getByRole("menuitem", { name: "编辑消息" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "个人菜单" }).click();
+  await page
+    .getByRole("menu", { name: "个人菜单" })
+    .getByRole("menuitem", { name: "设置" })
+    .click();
+  const settings = page.getByTestId("workspace-tool-settings");
+  await expect(settings.getByRole("button", { name: "外观" })).toBeVisible();
+  await expect(settings.getByRole("button", { name: "邀请" })).toBeVisible();
+  await settings.getByRole("button", { name: "身份" }).click();
   await expect(settings.getByText("已连接", { exact: true })).toBeVisible();
-  await expect(settings.getByLabel("显示名称")).toBeVisible();
-  await expect(settings.getByLabel("简介")).toBeVisible();
+  await settings.getByRole("button", { name: "Profile", exact: true }).click();
+  await settings.getByRole("button", { name: "编辑 Profile" }).click();
+  const profileEditor = page.getByRole("dialog", { name: "编辑 Profile" });
+  await expect(profileEditor.getByLabel("显示名称")).toBeVisible();
+  await expect(profileEditor.getByLabel("简介")).toBeVisible();
   await context.close();
 });

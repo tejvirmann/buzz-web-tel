@@ -70,17 +70,25 @@ test("chat workspace loads with Buzz branding and relay data", async ({ page }) 
   const membersButton = page.getByRole("button", { name: "Members: 3" });
   await expect(membersButton).toContainText("3");
   await membersButton.click();
-  await expect(page.getByRole("button", { name: "Close members" })).toBeVisible();
-  await page.getByRole("button", { name: "Close members" }).click();
+  const members = page.getByRole("dialog", { name: "Members · 3" });
+  await expect(members).toBeVisible();
+  await members.getByRole("button", { name: "Close" }).click();
   await expect(page.getByRole("button", { name: /Huddle/i })).toHaveCount(0);
-  const channelActions = page.getByRole("button", { name: "Channel actions" });
-  await channelActions.click();
-  const channelMenu = page.getByRole("menu", { name: "Channel actions" });
-  await expect(channelMenu.getByRole("menuitem", { name: "Search" })).toBeVisible();
-  await expect(channelMenu.getByRole("menuitem", { name: "Refresh" })).toBeVisible();
-  await expect(channelMenu.getByRole("menuitem", { name: "Settings" })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(channelMenu).toBeHidden();
+
+  await page.keyboard.press("Control+k");
+  const search = page.getByRole("dialog", { name: "Search messages" });
+  await expect(search.getByRole("button", { name: "Browse channels" })).toBeVisible();
+  await expect(search.getByRole("button", { name: "Create channel" })).toBeVisible();
+  await expect(search.getByText("general", { exact: true })).toBeVisible();
+  await search.getByRole("button", { name: "Close" }).click();
+
+  await page.getByRole("button", { name: "Channel details" }).click();
+  const details = page.getByRole("complementary", { name: "Channel details" });
+  await expect(details.getByRole("button", { name: "Refresh" })).toBeVisible();
+  await expect(details.getByRole("button", { name: "Add to favorites" })).toBeVisible();
+  await expect(details.getByRole("button", { name: "Mute channel" })).toBeVisible();
+  await expect(details.getByRole("button", { name: "Archive channel" })).toBeVisible();
+  await details.getByRole("button", { name: "Close channel details" }).click();
   await expectNoViewportOverflow(page);
   await page.screenshot({
     path: "test-results/visual/buzz-web-desktop.png",
@@ -119,8 +127,15 @@ test("Relay feature state controls preview navigation without local settings", a
   await expect(page.getByRole("button", { name: "Projects" })).toHaveCount(0);
   await expect(page.getByText("Forums", { exact: true })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Settings" }).last().click();
-  const settings = page.getByRole("dialog", { name: "Settings" });
+  await expect(page.getByRole("button", { name: "Profile menu" })).toBeVisible();
+  await page.waitForTimeout(100);
+  await page.keyboard.press("Control+,");
+  const settings = page.getByTestId("workspace-tool-settings");
+  await expect(settings.getByRole("navigation", { name: "Settings" })).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Profile", exact: true })).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Appearance" })).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Invites" })).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Identity" })).toBeVisible();
   await expect(settings.getByText("Experiments", { exact: true })).toHaveCount(0);
   await expect(settings.getByRole("checkbox")).toHaveCount(0);
 });
@@ -174,7 +189,7 @@ test("mobile Inbox and Agents views remain usable", async ({ page }) => {
   });
 });
 
-test("desktop channel panel shrinks left and restores its saved width", async ({ page }) => {
+test("desktop channel panel resizes and restores its saved width", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await enableDemo(page);
   await page.goto("/");
@@ -184,18 +199,20 @@ test("desktop channel panel shrinks left and restores its saved width", async ({
   const before = await separator.evaluate(
     (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
   );
+  expect(before).toBeGreaterThanOrEqual(186);
+  expect(before).toBeLessThanOrEqual(190);
   const handle = await separator.boundingBox();
   expect(handle).not.toBeNull();
   await page.mouse.move((handle?.x ?? 0) + 4, (handle?.y ?? 0) + 100);
   await page.mouse.down();
-  await page.mouse.move((handle?.x ?? 0) - 60, (handle?.y ?? 0) + 100);
+  await page.mouse.move((handle?.x ?? 0) + 72, (handle?.y ?? 0) + 100);
   await page.mouse.up();
 
   const resized = await separator.evaluate(
     (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
   );
-  expect(resized).toBeLessThan(before - 45);
-  expect(resized).toBeGreaterThanOrEqual(180);
+  expect(resized).toBeGreaterThan(before + 55);
+  expect(resized).toBeLessThanOrEqual(360);
 
   await page.reload();
   const restored = await page
@@ -204,30 +221,38 @@ test("desktop channel panel shrinks left and restores its saved width", async ({
   expect(Math.abs(restored - resized)).toBeLessThan(2);
 });
 
-test("member and thread panels open at independent persistent widths", async ({ page }) => {
+test("member modal and right panels use the Mac-style interaction model", async ({ page }) => {
   await page.setViewportSize({ width: 1720, height: 900 });
   await enableDemo(page);
   await page.goto("/");
 
-  await expect(page.getByRole("separator", { name: "Resize member panel" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Members · 3" })).toHaveCount(0);
   await page.getByRole("button", { name: "Members: 3" }).click();
-  const separator = page.getByRole("separator", { name: "Resize member panel" });
-  await expect(separator).toBeVisible();
-  const before = await separator.evaluate(
+  const members = page.getByRole("dialog", { name: "Members · 3" });
+  await expect(members).toBeVisible();
+  await expect(page.getByRole("separator", { name: /member panel/i })).toHaveCount(0);
+  await members.getByRole("button", { name: "Close" }).click();
+
+  await page.getByRole("button", { name: "Channel details" }).click();
+  const details = page.getByRole("complementary", { name: "Channel details" });
+  const detailsSeparator = page.getByRole("separator", { name: "Resize channel details" });
+  await expect(details).toBeVisible();
+  await expect(detailsSeparator).toBeVisible();
+  const detailsDefault = await detailsSeparator.evaluate(
     (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
   );
-  expect(before).toBeGreaterThanOrEqual(240);
-  expect(before).toBeLessThanOrEqual(280);
-  const handle = await separator.boundingBox();
-  expect(handle).not.toBeNull();
-  await page.mouse.move((handle?.x ?? 0) + 4, (handle?.y ?? 0) + 100);
+  expect(detailsDefault).toBeGreaterThanOrEqual(318);
+  expect(detailsDefault).toBeLessThanOrEqual(322);
+  const detailsHandle = await detailsSeparator.boundingBox();
+  expect(detailsHandle).not.toBeNull();
+  await page.mouse.move((detailsHandle?.x ?? 0) + 4, (detailsHandle?.y ?? 0) + 100);
   await page.mouse.down();
-  await page.mouse.move((handle?.x ?? 0) - 220, (handle?.y ?? 0) + 100);
+  await page.mouse.move((detailsHandle?.x ?? 0) - 120, (detailsHandle?.y ?? 0) + 100);
   await page.mouse.up();
-  const memberResized = await separator.evaluate(
+  const detailsResized = await detailsSeparator.evaluate(
     (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
   );
-  expect(memberResized).toBeGreaterThan(before + 190);
+  expect(detailsResized).toBeGreaterThan(detailsDefault + 100);
 
   const messageRow = page.locator("article").filter({
     hasText: "Relay is healthy. Postgres, Redis, MinIO, and Git are available.",
@@ -237,13 +262,13 @@ test("member and thread panels open at independent persistent widths", async ({ 
 
   const threadSeparator = page.getByRole("separator", { name: "Resize thread panel" });
   await expect(threadSeparator).toBeVisible();
-  await expect(separator).toHaveCount(0);
+  await expect(details).toHaveCount(0);
+  await expect(detailsSeparator).toHaveCount(0);
   const threadDefault = await threadSeparator.evaluate(
     (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
   );
   expect(threadDefault).toBeGreaterThanOrEqual(360);
   expect(threadDefault).toBeLessThanOrEqual(400);
-  expect(threadDefault).toBeLessThan(memberResized - 50);
   const threadHandle = await threadSeparator.boundingBox();
   expect(threadHandle).not.toBeNull();
   await page.mouse.move((threadHandle?.x ?? 0) + 4, (threadHandle?.y ?? 0) + 100);
@@ -261,27 +286,26 @@ test("member and thread panels open at independent persistent widths", async ({ 
 
   await page.getByRole("button", { name: "Close thread" }).click();
   await expect(threadSeparator).toHaveCount(0);
-  await expect(separator).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Members: 3" }).click();
-  const restoredMember = await separator.evaluate(
+  await page.getByRole("button", { name: "Channel details" }).click();
+  const restoredDetails = await detailsSeparator.evaluate(
     (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
   );
-  expect(Math.abs(restoredMember - memberResized)).toBeLessThan(2);
+  expect(Math.abs(restoredDetails - detailsResized)).toBeLessThan(2);
 
   await page.reload();
-  await expect(separator).toHaveCount(0);
-  await page.getByRole("button", { name: "Members: 3" }).click();
-  const persistedMember = await separator.evaluate(
+  await expect(detailsSeparator).toHaveCount(0);
+  await page.getByRole("button", { name: "Channel details" }).click();
+  const persistedDetails = await detailsSeparator.evaluate(
     (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
   );
-  expect(Math.abs(persistedMember - memberResized)).toBeLessThan(2);
+  expect(Math.abs(persistedDetails - detailsResized)).toBeLessThan(2);
 
   const restoredMessageRow = page.locator("article").filter({
     hasText: "Relay is healthy. Postgres, Redis, MinIO, and Git are available.",
   });
   await restoredMessageRow.hover();
   await restoredMessageRow.getByRole("button", { name: "Reply in thread" }).click();
+  await expect(details).toHaveCount(0);
   const persistedThread = await threadSeparator.evaluate(
     (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
   );
@@ -296,8 +320,7 @@ test("message reactions toggle once and use the Mac-style capsule shape", async 
     hasText: "Document the Web client deployment as well.",
   });
   await messageRow.hover();
-  await messageRow.getByRole("button", { name: "Add reaction" }).click();
-  await page.getByRole("button", { name: "Reaction 👀" }).click();
+  await messageRow.getByRole("button", { name: "Reaction 👀" }).click();
 
   const reaction = messageRow.getByRole("button", { name: "👀, 1 reactions" });
   await expect(reaction).toBeVisible();
@@ -305,8 +328,7 @@ test("message reactions toggle once and use the Mac-style capsule shape", async 
   await expect(reaction).toHaveCount(0);
 
   await messageRow.hover();
-  await messageRow.getByRole("button", { name: "Add reaction" }).click();
-  await page.getByRole("button", { name: "Reaction 👀" }).click();
+  await messageRow.getByRole("button", { name: "Reaction 👀" }).click();
   await expect(reaction).toBeVisible();
   const shape = await reaction.evaluate((element) => {
     const style = getComputedStyle(element);

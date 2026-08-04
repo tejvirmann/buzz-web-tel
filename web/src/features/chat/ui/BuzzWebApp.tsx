@@ -25,7 +25,7 @@ import { DeleteMessageDialog, EditMessageDialog } from "@/features/chat/ui/Messa
 import { MessageList } from "@/features/chat/ui/MessageList";
 import { NewDmView } from "@/features/chat/ui/NewDmView";
 import { useRightPanelWidth } from "@/features/chat/ui/RightPanelSizing";
-import { SettingsDialog } from "@/features/chat/ui/SettingsDialog";
+import { SettingsView } from "@/features/chat/ui/SettingsDialog";
 import { ThreadPanel } from "@/features/chat/ui/ThreadPanel";
 import { type WorkspaceTool, WorkspaceToolPanel } from "@/features/chat/ui/WorkspaceToolPanel";
 import { addCommunityMember, mintCommunityInvite } from "@/features/community/invite-api";
@@ -40,7 +40,7 @@ import { loadRuntimeConfig, type RuntimeConfig } from "@/shared/config/runtime-c
 import { resolveRelayFeatures } from "@/shared/features/relay-features";
 import { t } from "@/shared/i18n";
 
-type DialogName = "browse" | "search" | "settings" | "invite" | null;
+type DialogName = "browse" | "search" | "invite" | null;
 
 function Workspace({
   config,
@@ -160,7 +160,12 @@ function Workspace({
         setDialog("search");
       } else if (event.key === ",") {
         event.preventDefault();
-        setDialog("settings");
+        setActiveTool("settings");
+        setThreadRootId(null);
+        setThreadReplyTargetId(null);
+        setChannelDetailsOpen(false);
+        setMemberDialogOpen(false);
+        setMobileNavigationOpen(false);
       }
     };
     window.addEventListener("keydown", handleShortcut);
@@ -301,7 +306,7 @@ function Workspace({
         onToggleTool={toggleTool}
         onSearch={() => setDialog("search")}
         onSelectChannel={selectChannel}
-        onSettings={() => setDialog("settings")}
+        onSettings={() => toggleTool("settings")}
         onResize={setNavigationWidth}
         starredChannelIds={userState.starredChannelIds}
         mutedChannelIds={userState.mutedChannelIds}
@@ -467,6 +472,26 @@ function Workspace({
                 onClose={() => setActiveTool(null)}
                 onOpenChannel={selectChannel}
               />
+            ) : activeTool === "settings" ? (
+              <SettingsView
+                canInvite={canCreateChannel}
+                connectionState={state.connectionState}
+                profile={
+                  state.profiles[pubkey] ?? {
+                    pubkey,
+                    name: pubkey.slice(0, 12),
+                    about: "",
+                    picture: null,
+                    isAgent: false,
+                  }
+                }
+                pubkey={pubkey}
+                relayUrl={config.relayUrl}
+                onClose={() => setActiveTool(null)}
+                onOpenInvites={() => setDialog("invite")}
+                onSwitchIdentity={handleSignOut}
+                onUpdateProfile={session.updateProfile}
+              />
             ) : null}
           </WorkspaceToolPanel>
         ) : threadRoot ? (
@@ -569,25 +594,6 @@ function Workspace({
           onSelectChannel={selectChannel}
           onBrowseChannels={() => openChannelBrowser()}
           onCreateChannel={canCreateChannel ? () => openChannelBrowser("create") : undefined}
-        />
-      ) : null}
-      {dialog === "settings" ? (
-        <SettingsDialog
-          connectionState={state.connectionState}
-          profile={
-            state.profiles[pubkey] ?? {
-              pubkey,
-              name: pubkey.slice(0, 12),
-              about: "",
-              picture: null,
-              isAgent: false,
-            }
-          }
-          pubkey={pubkey}
-          relayUrl={config.relayUrl}
-          onClose={() => setDialog(null)}
-          onSwitchIdentity={handleSignOut}
-          onUpdateProfile={session.updateProfile}
         />
       ) : null}
       {dialog === "invite" ? (
