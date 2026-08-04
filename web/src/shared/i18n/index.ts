@@ -222,7 +222,6 @@ const messages = {
   "workspace.noChannels": { en: "No accessible channels", "zh-CN": "没有可访问的频道" },
   "workspace.openChannels": { en: "Open channel list", "zh-CN": "打开频道列表" },
   "workspace.refreshChannels": { en: "Refresh channels", "zh-CN": "刷新频道" },
-  "workspace.resizeToolPanel": { en: "Resize tool panel", "zh-CN": "调整工具面板宽度" },
   "workspace.sendTo": { en: "Send a message to {target}", "zh-CN": "发送消息到 {target}" },
   "workspace.tool.agents": { en: "Agents", "zh-CN": "Agents" },
   "workspace.tool.inbox": { en: "Inbox", "zh-CN": "Inbox" },

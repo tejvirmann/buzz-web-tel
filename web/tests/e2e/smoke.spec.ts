@@ -350,9 +350,7 @@ test("mention autocomplete works in channel and thread composers", async ({ page
   await expectNoViewportOverflow(page);
 });
 
-test("workspace tools open beside the active conversation and can be switched", async ({
-  page,
-}) => {
+test("workspace tools replace chat while preserving channel navigation", async ({ page }) => {
   await enableDemo(page);
   await page.goto("/");
 
@@ -360,27 +358,35 @@ test("workspace tools open beside the active conversation and can be switched", 
   await page.getByRole("button", { name: "Projects" }).first().click();
   const reposPanel = page.getByTestId("workspace-tool-repos");
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole("heading", { name: "general" })).toBeVisible();
-  await expect(composer).toBeVisible();
   await expect(reposPanel).toBeVisible();
   await expect(reposPanel.getByRole("heading", { name: "Repositories" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "general" })).toHaveCount(0);
+  await expect(composer).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "general", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Codex(remote)", exact: true })).toBeVisible();
+  await page.screenshot({
+    path: "test-results/visual/buzz-web-repos.png",
+    animations: "disabled",
+  });
 
-  const composerBox = await composer.boundingBox();
-  const reposBox = await reposPanel.boundingBox();
-  expect(composerBox).not.toBeNull();
-  expect(reposBox).not.toBeNull();
-  expect((composerBox?.x ?? 0) + (composerBox?.width ?? 0)).toBeLessThanOrEqual(
-    (reposBox?.x ?? 0) + 1,
-  );
+  await page.getByRole("button", { name: "general", exact: true }).click();
+  await expect(reposPanel).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "general" })).toBeVisible();
+  await expect(composer).toBeVisible();
+
+  await page.getByRole("button", { name: "Projects" }).first().click();
+  await expect(reposPanel).toBeVisible();
 
   await page.getByRole("button", { name: "Agents" }).first().click();
   await expect(reposPanel).toHaveCount(0);
   await expect(page.getByTestId("workspace-tool-agents")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "general" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "general" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "general", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Agents" }).first().click();
   await expect(page.getByTestId("workspace-tool-agents")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "general" })).toBeVisible();
+  await expect(composer).toBeVisible();
 });
 
 test("community admins can add a member or generate an invite link", async ({ page }) => {
@@ -417,7 +423,8 @@ test("remote agents can be inspected, assigned to channels, and messaged", async
   const agentsPanel = page.getByTestId("workspace-tool-agents");
   await expect(agentsPanel.getByRole("heading", { name: "Agents" })).toBeVisible();
   await expect(agentsPanel.getByText("2 remote agents")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "general" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "general" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "general", exact: true })).toBeVisible();
   await expect(agentsPanel.getByText("Codex(remote)", { exact: true })).toHaveCount(1);
 
   await agentsPanel.getByText("Codex(remote)", { exact: true }).click();
@@ -446,7 +453,8 @@ test("Inbox filters unread activity and opens the source thread", async ({ page 
   const inboxPanel = page.getByTestId("workspace-tool-inbox");
   await expect(inboxPanel.getByRole("heading", { name: "Inbox" })).toBeVisible();
   await expect(inboxPanel.getByText("4 unread")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "general" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "general" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "general", exact: true })).toBeVisible();
   await page.screenshot({
     path: "test-results/visual/buzz-web-inbox.png",
     animations: "disabled",
