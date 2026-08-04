@@ -1,10 +1,9 @@
-import { AtSign, LoaderCircle, MessageCircle, Plus, Trash2, X } from "lucide-react";
+import { AtSign, LoaderCircle, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { fallbackProfile } from "@/features/chat/lib/chat-model";
 import type { BuzzChannel, MemberRole, UserProfile } from "@/features/chat/lib/chat-types";
 import { DialogFrame } from "@/features/chat/ui/AppDialogs";
 import { Avatar } from "@/features/chat/ui/Avatar";
-import { RightPanelResizeHandle } from "@/features/chat/ui/RightPanelSizing";
 import { getLocale, t } from "@/shared/i18n";
 import { parsePublicKey } from "@/shared/lib/pubkey";
 
@@ -18,20 +17,16 @@ function roleLabel(role: MemberRole): string {
   return t("member.roleMember");
 }
 
-export function MemberPanel({
+export function MemberDialog({
   channel,
   profiles,
   presence,
   relayUrl,
   currentPubkey,
-  maximumWidth,
-  minimumWidth,
-  panelWidth,
   canManage,
   onClose,
   onMention,
   onOpenDm,
-  onResize,
   onSetMember,
   onRemoveMember,
 }: {
@@ -40,14 +35,10 @@ export function MemberPanel({
   presence: Record<string, "online" | "away" | "offline">;
   relayUrl: string;
   currentPubkey: string;
-  maximumWidth: number;
-  minimumWidth: number;
-  panelWidth: number;
   canManage: boolean;
   onClose: () => void;
   onMention: (name: string) => void;
   onOpenDm: (pubkey: string) => Promise<void>;
-  onResize: (width: number) => void;
   onSetMember: (pubkey: string, role: "admin" | "member" | "guest") => Promise<void>;
   onRemoveMember: (pubkey: string) => Promise<void>;
 }) {
@@ -90,199 +81,180 @@ export function MemberPanel({
 
   return (
     <>
-      <aside
-        className="relative flex min-h-0 shrink-0 flex-col overflow-hidden border-l bg-background/95 backdrop-blur-xl 2xl:bg-background/35 2xl:backdrop-blur-none max-2xl:absolute max-2xl:inset-y-0 max-2xl:right-0 max-2xl:z-30 max-2xl:shadow-xl max-sm:!w-full"
-        style={{ width: panelWidth }}
+      <DialogFrame
+        title={t("member.count", { count: members.length })}
+        width="max-w-2xl"
+        onClose={onClose}
       >
-        <RightPanelResizeHandle
-          label={t("member.resize")}
-          maximum={maximumWidth}
-          minimum={minimumWidth}
-          panelWidth={panelWidth}
-          onResize={onResize}
-        />
-        <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-          <h2 className="text-sm font-semibold">{t("member.count", { count: members.length })}</h2>
-          <div className="flex items-center gap-1">
-            {canManage && channel.type !== "dm" ? (
+        <div className="flex min-h-0 max-h-[72dvh] flex-col">
+          {canManage && channel.type !== "dm" ? (
+            <div className="border-b p-3">
               <button
-                aria-label={t("member.add")}
-                aria-pressed={addOpen}
-                className="buzz-icon-button"
-                title={t("member.add")}
+                aria-expanded={addOpen}
+                className="inline-flex h-8 items-center gap-2 rounded-md border px-2.5 text-xs font-medium hover:bg-foreground/5"
                 type="button"
                 onClick={() => setAddOpen((open) => !open)}
               >
                 <Plus className="h-4 w-4" />
+                {t("member.add")}
               </button>
-            ) : null}
-            <button
-              aria-label={t("member.close")}
-              className="buzz-icon-button"
-              title={t("member.close")}
-              type="button"
-              onClick={onClose}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </header>
-        {addOpen ? (
-          <form
-            className="space-y-2 border-b p-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              let target: string;
-              try {
-                target = parsePublicKey(identity);
-              } catch (parseError) {
-                setError(
-                  parseError instanceof Error ? parseError.message : t("error.pubkeyInvalid"),
-                );
-                return;
-              }
-              void run(`add:${target}`, () => onSetMember(target, newRole))
-                .then(() => {
-                  setIdentity("");
-                  setAddOpen(false);
-                })
-                .catch(() => undefined);
-            }}
-          >
-            <input
-              aria-label={t("member.publicKey")}
-              className="h-9 w-full rounded-md border bg-background px-3 font-mono text-xs outline-none focus:ring-2 focus:ring-primary/30"
-              placeholder={t("invite.memberIdentityPlaceholder")}
-              value={identity}
-              onChange={(event) => setIdentity(event.target.value)}
-            />
-            <div className="flex gap-2">
-              <select
-                aria-label={t("member.role")}
-                className="h-9 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs"
-                value={newRole}
-                onChange={(event) =>
-                  setNewRole(event.target.value as (typeof MANAGEABLE_ROLES)[number])
-                }
-              >
-                {MANAGEABLE_ROLES.map((role) => (
-                  <option key={role} value={role}>
-                    {roleLabel(role)}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="h-9 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-40"
-                disabled={!identity.trim() || pending !== null}
-                type="submit"
-              >
-                {pending?.startsWith("add:") ? t("member.adding") : t("member.add")}
-              </button>
+              {addOpen ? (
+                <form
+                  className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_auto]"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    let target: string;
+                    try {
+                      target = parsePublicKey(identity);
+                    } catch (parseError) {
+                      setError(
+                        parseError instanceof Error ? parseError.message : t("error.pubkeyInvalid"),
+                      );
+                      return;
+                    }
+                    void run(`add:${target}`, () => onSetMember(target, newRole))
+                      .then(() => {
+                        setIdentity("");
+                        setAddOpen(false);
+                      })
+                      .catch(() => undefined);
+                  }}
+                >
+                  <input
+                    aria-label={t("member.publicKey")}
+                    className="h-9 min-w-0 rounded-md border bg-background px-3 font-mono text-xs outline-none"
+                    placeholder={t("invite.memberIdentityPlaceholder")}
+                    value={identity}
+                    onChange={(event) => setIdentity(event.target.value)}
+                  />
+                  <select
+                    aria-label={t("member.role")}
+                    className="h-9 rounded-md border bg-background px-2 text-xs"
+                    value={newRole}
+                    onChange={(event) =>
+                      setNewRole(event.target.value as (typeof MANAGEABLE_ROLES)[number])
+                    }
+                  >
+                    {MANAGEABLE_ROLES.map((role) => (
+                      <option key={role} value={role}>
+                        {roleLabel(role)}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="h-9 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-40"
+                    disabled={!identity.trim() || pending !== null}
+                    type="submit"
+                  >
+                    {pending?.startsWith("add:") ? t("member.adding") : t("member.add")}
+                  </button>
+                </form>
+              ) : null}
             </div>
-          </form>
-        ) : null}
-        {error ? (
-          <p className="border-b border-destructive/20 bg-destructive/8 px-3 py-2 text-xs text-destructive">
-            {error}
-          </p>
-        ) : null}
-        <div className="buzz-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
-          {members.map(({ member, profile }) => {
-            const canEditMember =
-              canManage &&
-              member.pubkey !== currentPubkey &&
-              member.role !== "owner" &&
-              member.role !== "bot";
-            return (
-              <div
-                key={member.pubkey}
-                className="group flex items-center gap-2.5 rounded-md px-2 py-2 hover:bg-foreground/5"
-              >
-                <Avatar
-                  profile={profile}
-                  relayUrl={relayUrl}
-                  size={30}
-                  showStatus
-                  status={presence[member.pubkey]}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{profile.name}</div>
-                  {canEditMember ? (
-                    <select
-                      aria-label={t("member.changeRole", { name: profile.name })}
-                      className="-ml-1 mt-0.5 h-5 max-w-full bg-transparent text-[10px] text-muted-foreground outline-none"
-                      disabled={pending !== null}
-                      value={member.role}
-                      onChange={(event) =>
-                        void run(`role:${member.pubkey}`, () =>
-                          onSetMember(
-                            member.pubkey,
-                            event.target.value as (typeof MANAGEABLE_ROLES)[number],
-                          ),
-                        ).catch(() => undefined)
-                      }
-                    >
-                      {MANAGEABLE_ROLES.map((role) => (
-                        <option key={role} value={role}>
-                          {roleLabel(role)}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="text-[10px] text-muted-foreground">
-                      {profile.isAgent ? t("member.remoteAgent") : roleLabel(member.role)}
-                    </div>
-                  )}
-                </div>
-                {pending?.endsWith(member.pubkey) ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
-                ) : member.pubkey !== currentPubkey ? (
-                  <div className="hidden items-center group-hover:flex group-focus-within:flex">
-                    {channel.type !== "dm" ? (
-                      <button
-                        aria-label={`@${profile.name}`}
-                        className="buzz-icon-button h-7 w-7 flex-none"
-                        title={`@${profile.name}`}
-                        type="button"
-                        onClick={() => onMention(profile.name)}
-                      >
-                        <AtSign className="h-3.5 w-3.5" />
-                      </button>
-                    ) : null}
-                    <button
-                      aria-label={t("member.directMessage", { name: profile.name })}
-                      className="buzz-icon-button h-7 w-7 flex-none"
-                      title={t("member.directMessage", { name: profile.name })}
-                      type="button"
-                      onClick={() => void onOpenDm(member.pubkey)}
-                    >
-                      <MessageCircle className="h-3.5 w-3.5" />
-                    </button>
+          ) : null}
+          {error ? (
+            <p className="border-b bg-destructive/8 px-3 py-2 text-xs text-destructive">{error}</p>
+          ) : null}
+          <div className="buzz-scrollbar min-h-0 overflow-y-auto p-2">
+            {members.map(({ member, profile }) => {
+              const canEditMember =
+                canManage &&
+                member.pubkey !== currentPubkey &&
+                member.role !== "owner" &&
+                member.role !== "bot";
+              return (
+                <div
+                  key={member.pubkey}
+                  className="group flex min-h-12 items-center gap-3 rounded-md px-2 py-1.5 hover:bg-foreground/5"
+                >
+                  <Avatar
+                    profile={profile}
+                    relayUrl={relayUrl}
+                    size={32}
+                    showStatus
+                    status={presence[member.pubkey]}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">{profile.name}</div>
                     {canEditMember ? (
-                      <button
-                        aria-label={t("member.remove", { name: profile.name })}
-                        className="buzz-icon-button h-7 w-7 flex-none text-destructive"
-                        title={t("member.remove", { name: profile.name })}
-                        type="button"
-                        onClick={() => setRemoveTarget(member.pubkey)}
+                      <select
+                        aria-label={t("member.changeRole", { name: profile.name })}
+                        className="-ml-1 h-5 max-w-full bg-transparent text-[10px] text-muted-foreground outline-none"
+                        disabled={pending !== null}
+                        value={member.role}
+                        onChange={(event) =>
+                          void run(`role:${member.pubkey}`, () =>
+                            onSetMember(
+                              member.pubkey,
+                              event.target.value as (typeof MANAGEABLE_ROLES)[number],
+                            ),
+                          ).catch(() => undefined)
+                        }
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    ) : null}
+                        {MANAGEABLE_ROLES.map((role) => (
+                          <option key={role} value={role}>
+                            {roleLabel(role)}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="text-[10px] text-muted-foreground">
+                        {profile.isAgent ? t("member.remoteAgent") : roleLabel(member.role)}
+                      </div>
+                    )}
                   </div>
-                ) : null}
-              </div>
-            );
-          })}
+                  {pending?.endsWith(member.pubkey) ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : member.pubkey !== currentPubkey ? (
+                    <div className="flex items-center">
+                      {channel.type !== "dm" ? (
+                        <button
+                          aria-label={`@${profile.name}`}
+                          className="buzz-icon-button h-7 w-7 flex-none"
+                          title={`@${profile.name}`}
+                          type="button"
+                          onClick={() => {
+                            onMention(profile.name);
+                            onClose();
+                          }}
+                        >
+                          <AtSign className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                      <button
+                        aria-label={t("member.directMessage", { name: profile.name })}
+                        className="buzz-icon-button h-7 w-7 flex-none"
+                        title={t("member.directMessage", { name: profile.name })}
+                        type="button"
+                        onClick={() => void onOpenDm(member.pubkey)}
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </button>
+                      {canEditMember ? (
+                        <button
+                          aria-label={t("member.remove", { name: profile.name })}
+                          className="buzz-icon-button h-7 w-7 flex-none text-destructive"
+                          title={t("member.remove", { name: profile.name })}
+                          type="button"
+                          onClick={() => setRemoveTarget(member.pubkey)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </aside>
+      </DialogFrame>
       {removeTarget && removeProfile ? (
         <DialogFrame title={t("member.removeTitle")} onClose={() => setRemoveTarget(null)}>
           <div className="space-y-4 p-4">
             <p className="text-sm leading-6 text-muted-foreground">
               {t("member.removeConfirm", { name: removeProfile.name, channel: channel.name })}
             </p>
-            {error ? <p className="text-xs text-destructive">{error}</p> : null}
             <div className="flex justify-end gap-2 border-t pt-4">
               <button
                 className="h-9 rounded-md px-3 text-sm hover:bg-foreground/5"

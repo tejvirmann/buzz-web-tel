@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type RightPanelKind = "member" | "thread";
+type RightPanelKind = "agent" | "channel" | "thread";
 
 type RightPanelSpec = {
   defaultWidth: number;
@@ -9,10 +9,15 @@ type RightPanelSpec = {
 };
 
 const PANEL_SPECS: Record<RightPanelKind, RightPanelSpec> = {
-  member: {
-    defaultWidth: 256,
-    minimumWidth: 240,
-    storageKey: "buzz-web-member-panel-width-v2",
+  agent: {
+    defaultWidth: 360,
+    minimumWidth: 320,
+    storageKey: "buzz-web-agent-panel-width-v1",
+  },
+  channel: {
+    defaultWidth: 320,
+    minimumWidth: 280,
+    storageKey: "buzz-web-channel-panel-width-v1",
   },
   thread: {
     defaultWidth: 380,

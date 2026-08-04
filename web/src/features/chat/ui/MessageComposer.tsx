@@ -1,5 +1,5 @@
 import { CornerUpLeft, LoaderCircle, Paperclip, Send, X } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { contentWithAttachments, fallbackProfile } from "@/features/chat/lib/chat-model";
 import type {
   AttachmentDescriptor,
@@ -150,6 +150,13 @@ export function MessageComposer({
     if (replyTarget) inputRef.current?.focus();
   }, [replyTarget]);
 
+  useLayoutEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.style.height = "0px";
+    input.style.height = `${Math.min(144, Math.max(42, input.scrollHeight))}px`;
+  });
+
   const submit = async () => {
     if (disabled || sending || uploading || (!content.trim() && !attachments.length)) return;
     setSending(true);
@@ -187,7 +194,7 @@ export function MessageComposer({
   };
 
   return (
-    <div className={compact ? "px-3 pb-3" : "px-4 pb-4 sm:px-5"}>
+    <div className={compact ? "px-3 pb-3" : "px-3 pb-3 sm:px-4"}>
       {attachments.length ? (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map((attachment) => (
@@ -244,7 +251,7 @@ export function MessageComposer({
           selectedIndex={mentionSelectedIndex}
           onSelect={selectMention}
         />
-        <div className="relative z-10 rounded-md border border-border/90 bg-background/90 shadow-sm focus-within:ring-2 focus-within:ring-primary/30">
+        <div className="relative z-10 rounded-md border border-border/90 bg-background/90 shadow-sm focus-within:border-ring/55">
           <textarea
             ref={inputRef}
             aria-label={placeholder}
@@ -257,10 +264,11 @@ export function MessageComposer({
             aria-expanded={mentionMatches.length > 0}
             aria-haspopup="listbox"
             aria-autocomplete="list"
-            className={`block w-full resize-none bg-transparent px-3 pt-3 text-[15px] leading-6 outline-none placeholder:text-muted-foreground ${compact ? "min-h-20" : "min-h-24"}`}
+            className="block max-h-36 min-h-[42px] w-full resize-none overflow-y-auto bg-transparent px-3 py-2.5 text-sm leading-[22px] outline-none placeholder:text-muted-foreground"
             disabled={disabled || sending}
             placeholder={placeholder}
             role="combobox"
+            rows={1}
             value={content}
             onChange={(event) => {
               setContent(event.target.value);
@@ -302,7 +310,7 @@ export function MessageComposer({
               }
             }}
           />
-          <div className="flex h-10 items-center justify-between px-2">
+          <div className="flex h-8 items-center justify-between border-t border-border/55 px-1.5">
             <div className="flex items-center">
               <input
                 ref={fileRef}
@@ -328,7 +336,7 @@ export function MessageComposer({
             </div>
             <button
               aria-label={t("message.send")}
-              className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground transition-opacity disabled:opacity-35"
+              className="flex h-6 w-6 items-center justify-center rounded bg-foreground text-background transition-opacity disabled:opacity-25"
               disabled={
                 disabled || sending || uploading || (!content.trim() && !attachments.length)
               }
@@ -339,7 +347,7 @@ export function MessageComposer({
               {sending ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : (
-                <Send className="h-4 w-4" />
+                <Send className="h-3.5 w-3.5" />
               )}
             </button>
           </div>

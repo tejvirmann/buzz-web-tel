@@ -33,6 +33,7 @@ export function ThreadPanel({
   onEdit,
   onDelete,
   draftKey,
+  initialReplyTarget = null,
 }: {
   root: TimelineMessage;
   messages: TimelineMessage[];
@@ -58,8 +59,9 @@ export function ThreadPanel({
   onEdit: (message: TimelineMessage) => void;
   onDelete: (message: TimelineMessage) => void;
   draftKey: string;
+  initialReplyTarget?: TimelineMessage | null;
 }) {
-  const [replyTarget, setReplyTarget] = useState<TimelineMessage | null>(null);
+  const [replyTarget, setReplyTarget] = useState<TimelineMessage | null>(initialReplyTarget);
   const bottomRef = useRef<HTMLDivElement>(null);
   const threadMessages = [root, ...messages.filter((message) => message.rootId === root.event.id)];
   const threadMessageCount = threadMessages.length;
@@ -92,7 +94,7 @@ export function ThreadPanel({
         panelWidth={panelWidth}
         onResize={onResize}
       />
-      <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
+      <header className="flex h-11 shrink-0 items-center justify-between border-b px-3">
         <div>
           <h2 className="text-sm font-semibold">{t("thread.title")}</h2>
           <p className="text-[11px] text-muted-foreground">
