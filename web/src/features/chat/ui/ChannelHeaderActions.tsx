@@ -1,11 +1,4 @@
-import {
-  EllipsisVertical,
-  Headphones,
-  RefreshCw,
-  Search,
-  Settings,
-  UsersRound,
-} from "lucide-react";
+import { EllipsisVertical, RefreshCw, Search, Settings, UsersRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { t } from "@/shared/i18n";
 
@@ -66,15 +59,6 @@ export function ChannelHeaderActions({
       >
         <UsersRound className="h-[17px] w-[17px]" />
         <span className="min-w-2 text-[13px] font-medium leading-none">{memberCount}</span>
-      </button>
-      <button
-        aria-label={t("workspace.huddlesUnavailable")}
-        className={HEADER_BUTTON}
-        disabled
-        title={t("workspace.huddlesUnavailable")}
-        type="button"
-      >
-        <Headphones className="h-[17px] w-[17px]" />
       </button>
       <div className="relative" ref={menuRef}>
         <button

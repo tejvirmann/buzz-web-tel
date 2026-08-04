@@ -282,10 +282,6 @@ const messages = {
   "workspace.channelControls": { en: "Channel controls", "zh-CN": "频道控件" },
   "workspace.changeIdentity": { en: "Change identity", "zh-CN": "更换身份" },
   "workspace.loadingChannels": { en: "Loading channels", "zh-CN": "加载频道" },
-  "workspace.huddlesUnavailable": {
-    en: "Huddles are not available in Buzz Web yet",
-    "zh-CN": "Buzz Web 暂不支持语音讨论",
-  },
   "workspace.members": { en: "Members: {count}", "zh-CN": "成员：{count}" },
   "workspace.noChannels": { en: "No accessible channels", "zh-CN": "没有可访问的频道" },
   "workspace.openChannels": { en: "Open channel list", "zh-CN": "打开频道列表" },

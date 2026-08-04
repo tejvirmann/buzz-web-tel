@@ -71,9 +71,7 @@ test("chat workspace loads with Buzz branding and relay data", async ({ page }) 
   await membersButton.click();
   await expect(page.getByRole("button", { name: "Close members" })).toBeVisible();
   await page.getByRole("button", { name: "Close members" }).click();
-  await expect(
-    page.getByRole("button", { name: "Huddles are not available in Buzz Web yet" }),
-  ).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Huddle/i })).toHaveCount(0);
   const channelActions = page.getByRole("button", { name: "Channel actions" });
   await channelActions.click();
   const channelMenu = page.getByRole("menu", { name: "Channel actions" });
