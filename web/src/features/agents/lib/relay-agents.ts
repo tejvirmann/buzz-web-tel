@@ -57,7 +57,9 @@ export function relayAgentsFromEvents({
     configuredAgents.map((agent) => [agent.pubkey.toLowerCase(), agent.name] as const),
   );
   const botPubkeys = channels.flatMap((channel) =>
-    channel.members.filter((member) => member.role === "bot").map((member) => member.pubkey),
+    channel.members
+      .filter((member) => member.role === "bot")
+      .map((member) => member.pubkey.toLowerCase()),
   );
   const pubkeys = new Set([...latest.keys(), ...configured.keys(), ...botPubkeys]);
 

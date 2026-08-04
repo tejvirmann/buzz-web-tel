@@ -89,4 +89,21 @@ describe("relayAgentsFromEvents", () => {
       }),
     ]);
   });
+
+  it("deduplicates configured agents and bot memberships regardless of pubkey casing", () => {
+    const agents = relayAgentsFromEvents({
+      events: [],
+      configuredAgents: [{ pubkey: AGENT.toUpperCase(), name: "Codex(remote)" }],
+      channels: [channel()],
+      profiles: {},
+      presence: {},
+    });
+
+    expect(agents).toHaveLength(1);
+    expect(agents[0]).toMatchObject({
+      pubkey: AGENT,
+      name: "Codex(remote)",
+      channelIds: ["channel-id"],
+    });
+  });
 });
