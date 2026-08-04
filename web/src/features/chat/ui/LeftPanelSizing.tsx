@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const DEFAULT_PANEL_WIDTH = 250;
-const MIN_PANEL_WIDTH = 180;
-const MAX_PANEL_WIDTH = 420;
+const DEFAULT_PANEL_WIDTH = 188;
+const MIN_PANEL_WIDTH = 168;
+const MAX_PANEL_WIDTH = 360;
 const MAIN_CONTENT_MIN_WIDTH = 420;
-const ICON_RAIL_WIDTH = 60;
-const PANEL_WIDTH_KEY = "buzz-web-left-panel-width";
+const ICON_RAIL_WIDTH = 44;
+const PANEL_WIDTH_KEY = "buzz-web-left-panel-width-v2";
 
 function panelMaximum(): number {
   if (typeof window === "undefined") return MAX_PANEL_WIDTH;

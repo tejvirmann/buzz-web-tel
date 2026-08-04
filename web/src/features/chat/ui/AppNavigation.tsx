@@ -2,6 +2,7 @@ import {
   BellOff,
   Bot,
   Compass,
+  Ellipsis,
   GitBranch,
   Hash,
   Inbox,
@@ -12,8 +13,11 @@ import {
   Search,
   Settings,
   Star,
+  UserRoundCog,
+  UserRoundPlus,
   X,
 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import buzzAppIcon from "@/assets/app-icon@3x.png";
 import { channelDisplayName } from "@/features/chat/lib/chat-model";
 import type { BuzzChannel, UserProfile } from "@/features/chat/lib/chat-types";
@@ -42,7 +46,7 @@ function ConnectionDot({ state }: { state: RelayConnectionState }) {
 }
 
 function navRow(active: boolean, unread = false): string {
-  return `flex h-9 w-full items-center gap-3 rounded-md px-3 text-left text-sm transition-colors ${
+  return `flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] transition-colors ${
     active
       ? "bg-foreground/10 font-semibold text-foreground"
       : unread
@@ -83,12 +87,12 @@ export function AppNavigation({
   panelWidth,
   onCloseMobile,
   onSelectChannel,
-  onCreateChannel,
   onBrowseChannels,
   onNewDm,
   onSearch,
   onSettings,
   onInvite,
+  onSwitchIdentity,
   onShowMessages,
   onToggleTool,
   onResize,
@@ -112,18 +116,20 @@ export function AppNavigation({
   panelWidth: number;
   onCloseMobile: () => void;
   onSelectChannel: (id: string) => void;
-  onCreateChannel: () => void;
   onBrowseChannels: () => void;
   onNewDm: () => void;
   onSearch: () => void;
   onSettings: () => void;
   onInvite: () => void;
+  onSwitchIdentity: () => void;
   onShowMessages: () => void;
   onToggleTool: (tool: WorkspaceTool) => void;
   onResize: (width: number) => void;
   starredChannelIds: ReadonlySet<string>;
   mutedChannelIds: ReadonlySet<string>;
 }) {
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
   const profile = profiles[currentPubkey] ?? {
     pubkey: currentPubkey,
     name: t("system.you"),
@@ -145,13 +151,34 @@ export function AppNavigation({
     onCloseMobile();
   };
 
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    const closeOnOutsidePress = (event: PointerEvent) => {
+      if (!profileMenuRef.current?.contains(event.target as Node)) setProfileMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setProfileMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePress);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePress);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [profileMenuOpen]);
+
+  const runProfileAction = (action: () => void) => {
+    setProfileMenuOpen(false);
+    action();
+  };
+
   return (
     <>
-      <nav className="hidden w-[52px] shrink-0 flex-col items-center border-r border-black/5 py-3 md:flex dark:border-white/5">
-        <img alt="Buzz" className="h-9 w-9 rounded-[9px]" src={buzzAppIcon} />
+      <nav className="hidden w-11 shrink-0 flex-col items-center border-r border-black/5 py-2 md:flex dark:border-white/5">
+        <img alt="Buzz" className="h-8 w-8 rounded-lg" src={buzzAppIcon} />
         <button
           aria-label={canManageMembers ? t("invite.title") : t("nav.newDm")}
-          className="mt-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/65 text-foreground/70 transition-colors hover:bg-background"
+          className="mt-2 flex h-8 w-8 items-center justify-center rounded-full bg-background/60 text-foreground/70 transition-colors hover:bg-background/90"
           title={canManageMembers ? t("invite.title") : t("nav.newDm")}
           type="button"
           onClick={canManageMembers ? onInvite : onNewDm}
@@ -183,10 +210,10 @@ export function AppNavigation({
           onResize={onResize}
         />
 
-        <header className="flex h-[58px] shrink-0 items-center gap-2 px-2.5">
+        <header className="flex h-11 shrink-0 items-center gap-1.5 px-2">
           <button
             aria-label={t("common.search")}
-            className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md bg-background/35 px-3 text-left text-sm text-muted-foreground hover:bg-background/55"
+            className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md bg-background/35 px-2.5 text-left text-xs text-muted-foreground hover:bg-background/55"
             type="button"
             onClick={onSearch}
           >
@@ -245,7 +272,7 @@ export function AppNavigation({
             </button>
           </nav>
 
-          <section className="mt-7">
+          <section className="mt-5">
             <div className="mb-1 flex h-7 items-center justify-between px-3">
               <span className="text-[11px] font-medium text-muted-foreground">
                 {t("nav.channels")}
@@ -260,16 +287,9 @@ export function AppNavigation({
                 >
                   <Compass className="h-3.5 w-3.5" />
                 </button>
-                <button
-                  aria-label={t("dialog.createChannel")}
-                  className="buzz-icon-button h-6 w-6 flex-none"
-                  disabled={!canCreateChannel}
-                  title={canCreateChannel ? t("dialog.createChannel") : t("nav.onlyAdminCreate")}
-                  type="button"
-                  onClick={onCreateChannel}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
+                {canCreateChannel ? null : (
+                  <span className="sr-only">{t("nav.onlyAdminCreate")}</span>
+                )}
               </span>
             </div>
             {streamChannels.map((channel) => {
@@ -343,7 +363,7 @@ export function AppNavigation({
           ) : null}
 
           <section className="mt-6">
-            <div className="mb-1 flex h-7 items-center justify-between px-3">
+            <div className="mb-1 flex h-7 items-center justify-between px-2.5">
               <span className="text-[11px] font-medium text-muted-foreground">
                 {t("nav.directMessages")}
               </span>
@@ -400,22 +420,62 @@ export function AppNavigation({
           </section>
         </div>
 
-        <footer className="shrink-0 px-2 pb-2">
+        <footer className="relative shrink-0 px-2 pb-2" ref={profileMenuRef}>
+          {profileMenuOpen ? (
+            <div
+              aria-label={t("nav.profileMenu")}
+              className="absolute bottom-full left-2 right-2 z-50 mb-1 rounded-lg border border-border/70 bg-popover p-1.5 text-popover-foreground shadow-xl"
+              role="menu"
+            >
+              {canManageMembers ? (
+                <button
+                  className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs hover:bg-foreground/6"
+                  role="menuitem"
+                  type="button"
+                  onClick={() => runProfileAction(onInvite)}
+                >
+                  <UserRoundPlus className="h-4 w-4 text-muted-foreground" />
+                  {t("invite.title")}
+                </button>
+              ) : null}
+              <button
+                className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs hover:bg-foreground/6"
+                role="menuitem"
+                type="button"
+                onClick={() => runProfileAction(onSettings)}
+              >
+                <Settings className="h-4 w-4 text-muted-foreground" />
+                {t("common.settings")}
+              </button>
+              <div className="my-1 h-px bg-border" />
+              <button
+                className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs hover:bg-foreground/6"
+                role="menuitem"
+                type="button"
+                onClick={() => runProfileAction(onSwitchIdentity)}
+              >
+                <UserRoundCog className="h-4 w-4 text-muted-foreground" />
+                {t("identity.switch")}
+              </button>
+            </div>
+          ) : null}
           <button
-            aria-label={t("common.settings")}
-            className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left hover:bg-foreground/5"
+            aria-expanded={profileMenuOpen}
+            aria-haspopup="menu"
+            aria-label={t("nav.profileMenu")}
+            className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left hover:bg-foreground/5"
             type="button"
-            onClick={onSettings}
+            onClick={() => setProfileMenuOpen((open) => !open)}
           >
-            <Avatar profile={profile} relayUrl={relayUrl} size={30} showStatus status="online" />
+            <Avatar profile={profile} relayUrl={relayUrl} size={27} showStatus status="online" />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold">{profile.name}</div>
-              <div className="mt-0.5 flex items-center gap-1.5 truncate text-[10px] text-muted-foreground">
+              <div className="truncate text-xs font-semibold">{profile.name}</div>
+              <div className="mt-0.5 flex items-center gap-1.5 truncate text-[9px] text-muted-foreground">
                 <ConnectionDot state={connectionState} />
                 <span className="truncate">{communityName}</span>
               </div>
             </div>
-            <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Ellipsis className="h-4 w-4 shrink-0 text-muted-foreground" />
           </button>
         </footer>
       </aside>

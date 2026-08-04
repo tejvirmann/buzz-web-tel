@@ -446,6 +446,7 @@ const messages = {
     en: "Only Relay owners and admins can create channels",
     "zh-CN": "只有 Relay owner/admin 可以创建频道",
   },
+  "nav.profileMenu": { en: "Profile menu", "zh-CN": "个人菜单" },
   "nav.projects": { en: "Projects", "zh-CN": "项目" },
   "nav.pulse": { en: "Pulse", "zh-CN": "Pulse" },
   "nav.relayOnline": { en: "Relay online", "zh-CN": "Relay 在线" },

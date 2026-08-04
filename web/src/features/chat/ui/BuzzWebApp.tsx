@@ -254,8 +254,8 @@ function Workspace({
         selectedChannelId={state.selectedChannelId}
         onCloseMobile={() => setMobileNavigationOpen(false)}
         onBrowseChannels={() => setDialog("browse")}
-        onCreateChannel={() => setDialog("create")}
         onInvite={() => setDialog("invite")}
+        onSwitchIdentity={handleSignOut}
         onNewDm={() => setDialog("dm")}
         onShowMessages={showMessages}
         onToggleTool={toggleTool}
