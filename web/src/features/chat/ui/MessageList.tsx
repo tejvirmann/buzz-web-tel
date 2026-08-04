@@ -54,6 +54,7 @@ export function MessageRow({
   onDelete,
   currentPubkey,
   canModerate = false,
+  focused = false,
 }: {
   message: TimelineMessage;
   profile: UserProfile;
@@ -69,9 +70,12 @@ export function MessageRow({
   onDelete?: (message: TimelineMessage) => void;
   currentPubkey: string;
   canModerate?: boolean;
+  focused?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [targetHighlighted, setTargetHighlighted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLElement>(null);
   const ownMessage = message.event.pubkey.toLowerCase() === currentPubkey.toLowerCase();
   const mentions = useMemo(
     () =>
@@ -100,9 +104,35 @@ export function MessageRow({
     };
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!focused) {
+      setTargetHighlighted(false);
+      return;
+    }
+    setTargetHighlighted(true);
+    const frame = window.requestAnimationFrame(() => {
+      rowRef.current?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: "center",
+      });
+    });
+    const timer = window.setTimeout(() => setTargetHighlighted(false), 2_400);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [focused]);
+
   return (
     <article
-      className="group relative flex gap-2.5 px-3 py-1.5 hover:bg-foreground/[0.035] sm:px-4"
+      ref={rowRef}
+      aria-current={focused ? "true" : undefined}
+      className={`group relative flex gap-2.5 px-3 py-1.5 transition-colors duration-700 motion-reduce:transition-none sm:px-4 ${
+        targetHighlighted
+          ? "bg-foreground/[0.09] ring-1 ring-inset ring-foreground/15"
+          : "hover:bg-foreground/[0.035]"
+      }`}
+      data-highlighted={targetHighlighted || undefined}
       data-message-id={message.event.id}
       data-parent-id={message.parentId ?? undefined}
       data-root-id={message.rootId ?? undefined}
@@ -284,6 +314,7 @@ export function MessageList({
   onDelete,
   canModerate,
   unreadAfter,
+  focusedMessageId = null,
 }: {
   messages: TimelineMessage[];
   profiles: Record<string, UserProfile>;
@@ -298,6 +329,7 @@ export function MessageList({
   onDelete: (message: TimelineMessage) => void;
   canModerate: boolean;
   unreadAfter: number | null;
+  focusedMessageId?: string | null;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const unreadRef = useRef<HTMLDivElement>(null);
@@ -316,12 +348,14 @@ export function MessageList({
       message.event.created_at > unreadAfter &&
       message.event.pubkey.toLowerCase() !== currentPubkey.toLowerCase(),
   )?.event.id;
+  const focusedMessageLoaded = topLevel.some((message) => message.event.id === focusedMessageId);
 
   useEffect(() => {
     if (!lastMessageId) return;
+    if (focusedMessageLoaded) return;
     if (firstUnreadId) unreadRef.current?.scrollIntoView({ block: "center" });
     else bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [firstUnreadId, lastMessageId]);
+  }, [firstUnreadId, focusedMessageLoaded, lastMessageId]);
 
   if (loading && !topLevel.length) {
     return (
@@ -402,6 +436,7 @@ export function MessageList({
             <MessageRow
               canModerate={canModerate}
               currentPubkey={currentPubkey}
+              focused={message.event.id === focusedMessageId}
               message={message}
               profile={profile}
               profiles={profiles}

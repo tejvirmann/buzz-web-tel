@@ -79,8 +79,15 @@ test("chat workspace loads with Buzz branding and relay data", async ({ page }) 
   const search = page.getByRole("dialog", { name: "Search messages" });
   await expect(search.getByRole("button", { name: "Browse channels" })).toBeVisible();
   await expect(search.getByRole("button", { name: "Create channel" })).toBeVisible();
+  await expect(search.getByRole("button", { name: "New direct message" })).toBeVisible();
+  await expect(search.getByPlaceholder("Search this Relay")).toBeFocused();
   await expect(search.getByText("general", { exact: true })).toBeVisible();
   await search.getByRole("button", { name: "Close" }).click();
+
+  await page.keyboard.press("Control+f");
+  const channelSearch = page.getByRole("dialog", { name: "Search #general" });
+  await expect(channelSearch.getByPlaceholder("Search this channel")).toBeFocused();
+  await channelSearch.getByRole("button", { name: "Close" }).click();
 
   await page.getByRole("button", { name: "Channel details" }).click();
   const details = page.getByRole("complementary", { name: "Channel details" });
@@ -654,10 +661,12 @@ test("Inbox filters unread activity and opens the source thread", async ({ page 
   await enableDemo(page);
   await page.goto("/");
 
-  await page.getByRole("button", { name: "Inbox" }).first().click();
+  const inboxButton = page.getByRole("button", { name: "Inbox", exact: true }).first();
+  await expect(inboxButton).toContainText("2");
+  await inboxButton.click();
   const inboxPanel = page.getByTestId("workspace-tool-inbox");
   await expect(inboxPanel.getByRole("heading", { name: "Inbox" })).toBeVisible();
-  await expect(inboxPanel.getByText("3 unread")).toBeVisible();
+  await expect(inboxPanel.getByText("2 unread")).toBeVisible();
   await expect(page.getByRole("heading", { name: "general", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "general", exact: true })).toBeVisible();
   const generalUnread = page.getByTestId(
@@ -672,25 +681,29 @@ test("Inbox filters unread activity and opens the source thread", async ({ page 
   await inboxPanel.getByRole("combobox", { name: "Filter Inbox" }).selectOption("mention");
   await inboxPanel.getByRole("button", { name: /Can you review the deployment checklist/ }).click();
   await expect(inboxPanel.getByText("2 unread")).toBeVisible();
-
-  await inboxPanel.getByRole("combobox", { name: "Filter Inbox" }).selectOption("thread");
-  const reply = inboxPanel.getByRole("button", {
-    name: /Verification is complete and the result is attached/,
-  });
-  await inboxPanel.getByRole("button", { name: "Close Inbox" }).click();
+  await inboxPanel.getByRole("button", { name: "Open conversation" }).click();
   await expect(page.getByRole("heading", { name: "general", exact: true })).toBeVisible();
+  const locatedMention = page.locator(`[data-message-id="${"1".repeat(64)}"]`);
+  await expect(locatedMention).toHaveAttribute("data-highlighted", "true");
+  await expect(locatedMention).toBeInViewport();
   await expect(generalUnread).toBeVisible();
 
   await page.getByRole("button", { name: "Inbox" }).first().click();
   await inboxPanel.getByRole("combobox", { name: "Filter Inbox" }).selectOption("thread");
+  const reply = inboxPanel.getByRole("button", {
+    name: /Verification is complete and the result is attached/,
+  });
   await reply.click();
   await expect(inboxPanel.getByText("1 unread")).toBeVisible();
   await inboxPanel.getByRole("button", { name: "Open conversation" }).click();
   await expect(page.getByRole("complementary", { name: "Thread" })).toBeVisible();
+  const locatedReply = page.locator(`[data-message-id="${"3".repeat(64)}"]`);
+  await expect(locatedReply).toHaveAttribute("data-highlighted", "true");
+  await expect(locatedReply).toBeInViewport();
   await expect(generalUnread).toHaveCount(0);
 
   await page.getByRole("button", { name: "Inbox" }).first().click();
-  await page.getByRole("button", { name: "Mark all as read" }).click();
+  await page.keyboard.press("Shift+Escape");
   await expect(page.getByText("0 unread")).toBeVisible();
   await expect(generalUnread).toHaveCount(0);
 });
@@ -703,6 +716,10 @@ test("Chinese browsers receive the Chinese interface", async ({ browser }) => {
   await expect(page.getByRole("button", { name: "搜索" }).first()).toBeVisible();
   await expect(page.getByText("创建了此频道", { exact: true })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await page.keyboard.press("Control+f");
+  const channelSearch = page.getByRole("dialog", { name: "在 #general 中搜索" });
+  await expect(channelSearch.getByPlaceholder("搜索当前频道")).toBeFocused();
+  await channelSearch.getByRole("button", { name: "关闭" }).click();
 
   await page.goto("/invite/demo-code");
   await expect(page.getByRole("heading", { name: "你受邀加入" })).toBeVisible();

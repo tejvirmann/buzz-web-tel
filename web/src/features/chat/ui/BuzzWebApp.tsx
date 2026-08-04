@@ -1,14 +1,18 @@
 import { AlertTriangle, Hash, LoaderCircle, Lock, Menu, Users } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import buzzAppIcon from "@/assets/app-icon@3x.png";
 import { AgentsView } from "@/features/agents/ui/AgentsView";
 import { useRelayAgents } from "@/features/agents/use-relay-agents";
-import { channelDisplayName } from "@/features/chat/lib/chat-model";
+import { channelDisplayName, threadReference } from "@/features/chat/lib/chat-model";
 import type { BuzzChannel, TimelineMessage } from "@/features/chat/lib/chat-types";
 import { conversationDraftKey } from "@/features/chat/lib/conversation-drafts";
 import { useBuzzSession } from "@/features/chat/lib/use-buzz-session";
 import { useRelayUserState } from "@/features/chat/lib/use-relay-user-state";
+import {
+  isEditableShortcutTarget,
+  resolveWorkspaceShortcut,
+} from "@/features/chat/lib/workspace-shortcuts";
 import { SearchDialog } from "@/features/chat/ui/AppDialogs";
 import { AppNavigation } from "@/features/chat/ui/AppNavigation";
 import {
@@ -67,9 +71,11 @@ function Workspace({
   });
   const [activeTool, setActiveTool] = useState<WorkspaceTool | null>(null);
   const [dialog, setDialog] = useState<DialogName>(null);
+  const [searchChannelId, setSearchChannelId] = useState<string | null>(null);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [threadRootId, setThreadRootId] = useState<string | null>(null);
   const [threadReplyTargetId, setThreadReplyTargetId] = useState<string | null>(null);
+  const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null);
   const [channelDetailsOpen, setChannelDetailsOpen] = useState(false);
   const [memberDialogOpen, setMemberDialogOpen] = useState(false);
   const [channelBrowserInitialView, setChannelBrowserInitialView] = useState<"browse" | "create">(
@@ -153,26 +159,6 @@ function Workspace({
   }, [userState.syncError]);
 
   useEffect(() => {
-    const handleShortcut = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
-      if (event.key.toLocaleLowerCase() === "k") {
-        event.preventDefault();
-        setDialog("search");
-      } else if (event.key === ",") {
-        event.preventDefault();
-        setActiveTool("settings");
-        setThreadRootId(null);
-        setThreadReplyTargetId(null);
-        setChannelDetailsOpen(false);
-        setMemberDialogOpen(false);
-        setMobileNavigationOpen(false);
-      }
-    };
-    window.addEventListener("keydown", handleShortcut);
-    return () => window.removeEventListener("keydown", handleShortcut);
-  }, []);
-
-  useEffect(() => {
     const channelId = state.selectedChannelId;
     if (!channelId || activeTool || !userState.hydrated) return;
     setUnreadBoundaries((current) =>
@@ -216,6 +202,7 @@ function Workspace({
     setThreadReplyTargetId(null);
     setChannelDetailsOpen(false);
     setMemberDialogOpen(false);
+    setFocusedMessageId(null);
     session.selectChannel(channelId);
   };
   const toggleTool = (tool: WorkspaceTool) => {
@@ -225,21 +212,27 @@ function Workspace({
     setChannelDetailsOpen(false);
     setMemberDialogOpen(false);
     setMobileNavigationOpen(false);
+    setFocusedMessageId(null);
   };
   const showMessages = () => {
     setActiveTool(null);
     setChannelDetailsOpen(false);
     setMobileNavigationOpen(false);
+    setFocusedMessageId(null);
   };
-  const openInboxConversation = (item: InboxItem) => {
-    if (!item.channelId) return;
+  const revealMessage = (channelId: string, eventId: string, threadId: string | null) => {
     setActiveTool(null);
     setMobileNavigationOpen(false);
     setChannelDetailsOpen(false);
     setMemberDialogOpen(false);
-    session.selectChannel(item.channelId);
-    setThreadRootId(item.threadRootId);
+    setThreadRootId(threadId);
     setThreadReplyTargetId(null);
+    setFocusedMessageId(eventId);
+    session.revealMessage({ channelId, eventId, threadRootId: threadId });
+  };
+  const openInboxConversation = (item: InboxItem) => {
+    if (!item.channelId) return;
+    revealMessage(item.channelId, item.event.id, item.threadRootId);
   };
   const openAgentDm = async (targetPubkey: string) => {
     try {
@@ -249,6 +242,7 @@ function Workspace({
       setThreadReplyTargetId(null);
       setChannelDetailsOpen(false);
       setMemberDialogOpen(false);
+      setFocusedMessageId(null);
     } catch (openError) {
       toast.error(openError instanceof Error ? openError.message : t("error.dmOpen"));
     }
@@ -258,6 +252,7 @@ function Workspace({
     setChannelDetailsOpen(false);
     setThreadRootId(message.event.id);
     setThreadReplyTargetId(reply ? message.event.id : null);
+    setFocusedMessageId(null);
   };
   const toggleChannelDetails = () => {
     setActiveTool(null);
@@ -265,14 +260,106 @@ function Workspace({
     setThreadReplyTargetId(null);
     setChannelDetailsOpen((open) => !open);
   };
-  const openChannelBrowser = (initialView: "browse" | "create" = "browse") => {
+  const openChannelBrowser = useCallback((initialView: "browse" | "create" = "browse") => {
     setChannelBrowserInitialView(initialView);
     setDialog("browse");
-  };
+  }, []);
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      const shortcut = resolveWorkspaceShortcut(event, isEditableShortcutTarget(event.target));
+      if (!shortcut) return;
+      if (
+        dialog ||
+        memberDialogOpen ||
+        archiveTarget ||
+        editTarget ||
+        deleteTarget ||
+        mobileNavigationOpen
+      ) {
+        return;
+      }
+
+      let handled = true;
+      if (shortcut === "search") {
+        setSearchChannelId(null);
+        setDialog("search");
+      } else if (shortcut === "search-channel") {
+        if (!selectedChannel || activeTool) handled = false;
+        else {
+          setSearchChannelId(selectedChannel.id);
+          setDialog("search");
+        }
+      } else if (shortcut === "settings") {
+        setActiveTool("settings");
+        setThreadRootId(null);
+        setThreadReplyTargetId(null);
+        setChannelDetailsOpen(false);
+        setMemberDialogOpen(false);
+        setMobileNavigationOpen(false);
+        setFocusedMessageId(null);
+      } else if (shortcut === "browse-channels") {
+        openChannelBrowser();
+      } else if (shortcut === "create-channel") {
+        if (!canCreateChannel) handled = false;
+        else openChannelBrowser("create");
+      } else if (shortcut === "new-dm") {
+        setActiveTool("new-dm");
+        setThreadRootId(null);
+        setThreadReplyTargetId(null);
+        setChannelDetailsOpen(false);
+        setMemberDialogOpen(false);
+        setMobileNavigationOpen(false);
+        setFocusedMessageId(null);
+      } else if (shortcut === "mark-all-read") {
+        inbox.markAllRead();
+      } else if (shortcut === "mark-current-read") {
+        if (!selectedChannel || activeTool) handled = false;
+        else {
+          const latestChannelMessage = state.messages
+            .filter((message) => !message.rootId)
+            .reduce((timestamp, message) => Math.max(timestamp, message.event.created_at), 0);
+          if (latestChannelMessage > 0) {
+            inbox.markChannelRead(selectedChannel.id, latestChannelMessage);
+          }
+          if (threadRootId) {
+            const latestThreadMessage = state.messages
+              .filter((message) => message.rootId === threadRootId)
+              .reduce((timestamp, message) => Math.max(timestamp, message.event.created_at), 0);
+            if (latestThreadMessage > 0) {
+              inbox.markThreadRead(threadRootId, latestThreadMessage);
+            }
+          }
+        }
+      }
+
+      if (handled) event.preventDefault();
+    };
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, [
+    activeTool,
+    archiveTarget,
+    canCreateChannel,
+    deleteTarget,
+    dialog,
+    editTarget,
+    inbox.markAllRead,
+    inbox.markChannelRead,
+    inbox.markThreadRead,
+    memberDialogOpen,
+    mobileNavigationOpen,
+    openChannelBrowser,
+    selectedChannel,
+    state.messages,
+    threadRootId,
+  ]);
 
   const displayName = selectedChannel
     ? channelDisplayName(selectedChannel, state.profiles, pubkey)
     : "Buzz";
+  const searchChannel = state.channels.find((channel) => channel.id === searchChannelId) ?? null;
   const typingNames = state.typingPubkeys
     .map((typingPubkey) => state.profiles[typingPubkey]?.name)
     .filter((name): name is string => Boolean(name));
@@ -304,7 +391,10 @@ function Workspace({
         onNewDm={() => toggleTool("new-dm")}
         onShowMessages={showMessages}
         onToggleTool={toggleTool}
-        onSearch={() => setDialog("search")}
+        onSearch={() => {
+          setSearchChannelId(null);
+          setDialog("search");
+        }}
         onSelectChannel={selectChannel}
         onSettings={() => toggleTool("settings")}
         onResize={setNavigationWidth}
@@ -343,7 +433,10 @@ function Workspace({
                 <ChannelHeaderActions
                   detailsVisible={channelDetailsOpen}
                   memberCount={selectedChannel.members.length}
-                  onSearch={() => setDialog("search")}
+                  onSearch={() => {
+                    setSearchChannelId(selectedChannel.id);
+                    setDialog("search");
+                  }}
                   onShowDetails={toggleChannelDetails}
                   onShowMembers={() => setMemberDialogOpen(true)}
                 />
@@ -371,6 +464,7 @@ function Workspace({
                 <MessageList
                   canModerate={canManageChannel}
                   currentPubkey={pubkey}
+                  focusedMessageId={focusedMessageId}
                   loading={state.loadingMessages}
                   messages={state.messages}
                   presence={state.presence}
@@ -510,6 +604,7 @@ function Workspace({
             messages={state.messages}
             members={selectedChannel?.members ?? []}
             initialReplyTarget={threadReplyTarget}
+            focusedMessageId={focusedMessageId}
             minimumWidth={minimumThreadWidth}
             panelWidth={threadPanelWidth}
             presence={state.presence}
@@ -519,6 +614,7 @@ function Workspace({
             onClose={() => {
               setThreadRootId(null);
               setThreadReplyTargetId(null);
+              setFocusedMessageId(null);
             }}
             onDelete={setDeleteTarget}
             onEdit={setEditTarget}
@@ -590,10 +686,15 @@ function Workspace({
           profiles={state.profiles}
           onClose={() => setDialog(null)}
           onSearch={session.search}
-          onSelect={(hit) => selectChannel(hit.channelId)}
+          onSelect={(hit) => {
+            const reference = threadReference(hit.event);
+            revealMessage(hit.channelId, hit.event.id, reference.rootId);
+          }}
           onSelectChannel={selectChannel}
           onBrowseChannels={() => openChannelBrowser()}
           onCreateChannel={canCreateChannel ? () => openChannelBrowser("create") : undefined}
+          onNewDm={() => toggleTool("new-dm")}
+          scopeChannel={searchChannel}
         />
       ) : null}
       {dialog === "invite" ? (

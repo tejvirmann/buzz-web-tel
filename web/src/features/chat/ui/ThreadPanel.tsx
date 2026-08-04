@@ -34,6 +34,7 @@ export function ThreadPanel({
   onDelete,
   draftKey,
   initialReplyTarget = null,
+  focusedMessageId = null,
 }: {
   root: TimelineMessage;
   messages: TimelineMessage[];
@@ -60,11 +61,15 @@ export function ThreadPanel({
   onDelete: (message: TimelineMessage) => void;
   draftKey: string;
   initialReplyTarget?: TimelineMessage | null;
+  focusedMessageId?: string | null;
 }) {
   const [replyTarget, setReplyTarget] = useState<TimelineMessage | null>(initialReplyTarget);
   const bottomRef = useRef<HTMLDivElement>(null);
   const threadMessages = [root, ...messages.filter((message) => message.rootId === root.event.id)];
   const threadMessageCount = threadMessages.length;
+  const focusedMessageLoaded = threadMessages.some(
+    (message) => message.event.id === focusedMessageId,
+  );
   const replyTargetPubkey = replyTarget?.event.pubkey.toLowerCase() ?? "";
   const replyTargetProfile = replyTarget
     ? (profiles[replyTargetPubkey] ?? {
@@ -78,8 +83,9 @@ export function ThreadPanel({
 
   useEffect(() => {
     if (threadMessageCount < 1) return;
+    if (focusedMessageLoaded) return;
     bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [threadMessageCount]);
+  }, [focusedMessageLoaded, threadMessageCount]);
 
   return (
     <aside
@@ -125,6 +131,7 @@ export function ThreadPanel({
             <MessageRow
               canModerate={canModerate}
               currentPubkey={currentPubkey}
+              focused={message.event.id === focusedMessageId}
               key={message.event.id}
               message={message}
               profile={profile}

@@ -34,6 +34,12 @@ import type { BuzzRelayClient } from "@/shared/api/relay-client";
 import type { RuntimeConfig } from "@/shared/config/runtime-config";
 import { t } from "@/shared/i18n";
 
+type MessageAnchor = {
+  channelId: string;
+  eventId: string;
+  threadRootId: string | null;
+};
+
 export function useBuzzSession({
   client,
   config,
@@ -52,6 +58,7 @@ export function useBuzzSession({
   const [channels, setChannels] = useState<BuzzChannel[]>([]);
   const [discoveredChannels, setDiscoveredChannels] = useState<BuzzChannel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const [messageAnchor, setMessageAnchor] = useState<MessageAnchor | null>(null);
   const [contentEvents, setContentEvents] = useState<NostrEvent[]>([]);
   const [auxiliaryEvents, setAuxiliaryEvents] = useState<NostrEvent[]>([]);
   const [profiles, setProfiles] = useState<Record<string, UserProfile>>(() =>
@@ -300,6 +307,20 @@ export function useBuzzSession({
         now - 205,
       ),
       demoEvent("c", pubkey, general, "Document the Web client deployment as well.", now - 80),
+      demoEvent("1", codex, general, "Can you review the deployment checklist?", now - 55, [
+        ["p", pubkey],
+      ]),
+      demoEvent("2", codex, direct, "The Relay health checks are all passing.", now - 115, [
+        ["p", pubkey],
+      ]),
+      demoEvent(
+        "3",
+        codex,
+        general,
+        "Verification is complete and the result is attached.",
+        now - 40,
+        [["e", "c".repeat(64), "", "reply"]],
+      ),
     ]);
     setPresence({ [pubkey]: "online", [codex]: "online", [grok]: "offline" });
     setLoadingChannels(false);
@@ -391,17 +412,35 @@ export function useBuzzSession({
     setContentEvents([]);
     setAuxiliaryEvents([]);
     const startedAt = Math.floor(Date.now() / 1000) - 2;
+    const anchorIds =
+      messageAnchor?.channelId === selectedChannelId
+        ? [messageAnchor.eventId, messageAnchor.threadRootId].filter((eventId): eventId is string =>
+            Boolean(eventId),
+          )
+        : [];
     void Promise.all([
       client.query({ kinds: TIMELINE_KINDS, "#h": [selectedChannelId], limit: 150 }),
       client.query({ kinds: [39002], "#d": [selectedChannelId], limit: 1 }),
+      anchorIds.length
+        ? client.query({
+            ids: [...new Set(anchorIds)],
+            kinds: TIMELINE_KINDS,
+            "#h": [selectedChannelId],
+            limit: anchorIds.length,
+          })
+        : Promise.resolve([]),
     ])
-      .then(async ([history, memberEvents]) => {
+      .then(async ([history, memberEvents, anchorEvents]) => {
         if (cancelled) return;
-        setContentEvents(history);
+        const anchoredHistory = anchorEvents.filter(
+          (event) => anchorIds.includes(event.id) && eventChannelId(event) === selectedChannelId,
+        );
+        const nextContentEvents = mergeEvents(history, anchoredHistory);
+        setContentEvents(nextContentEvents);
         const members = memberEvents[0]
           ? memberEvents[0].tags.filter((tag) => tag[0] === "p").map((tag) => tag[1])
           : [];
-        await loadProfiles([...members, ...history.flatMap(systemMessagePubkeys)]);
+        await loadProfiles([...members, ...nextContentEvents.flatMap(systemMessagePubkeys)]);
         unsubscribeChannel = await client.subscribe(
           {
             kinds: [...TIMELINE_KINDS, ...AUXILIARY_KINDS],
@@ -447,7 +486,7 @@ export function useBuzzSession({
       unsubscribeChannel?.();
       unsubscribeTyping?.();
     };
-  }, [client, demo, loadProfiles, pubkey, selectedChannelId]);
+  }, [client, demo, loadProfiles, messageAnchor, pubkey, selectedChannelId]);
 
   const visibleContentEvents = useMemo(
     () =>
@@ -560,11 +599,15 @@ export function useBuzzSession({
   });
 
   const search = useCallback(
-    async (term: string): Promise<SearchHit[]> => {
+    async (term: string, channelId?: string): Promise<SearchHit[]> => {
       if (term.trim().length < 2) return [];
       if (demo) {
         return contentEvents
-          .filter((event) => event.content.toLocaleLowerCase().includes(term.toLocaleLowerCase()))
+          .filter(
+            (event) =>
+              (!channelId || eventChannelId(event) === channelId) &&
+              event.content.toLocaleLowerCase().includes(term.toLocaleLowerCase()),
+          )
           .map((event) => ({ event, channelId: eventChannelId(event) }));
       }
       if (!client) return [];
@@ -572,11 +615,12 @@ export function useBuzzSession({
         kinds: [9, 40002, 40008, 45001, 45003],
         search: term.trim(),
         limit: 50,
+        ...(channelId ? { "#h": [channelId] } : {}),
       });
       await loadProfiles(events.map((event) => event.pubkey));
       return events
         .map((event) => ({ event, channelId: eventChannelId(event) }))
-        .filter((hit) => Boolean(hit.channelId));
+        .filter((hit) => Boolean(hit.channelId) && (!channelId || hit.channelId === channelId));
     },
     [client, contentEvents, demo, loadProfiles],
   );
@@ -596,6 +640,16 @@ export function useBuzzSession({
     [client, demo, selectedChannelId],
   );
 
+  const selectChannel = useCallback((channelId: string) => {
+    setMessageAnchor(null);
+    setSelectedChannelId(channelId);
+  }, []);
+
+  const revealMessage = useCallback((anchor: MessageAnchor) => {
+    setMessageAnchor(anchor);
+    setSelectedChannelId(anchor.channelId);
+  }, []);
+
   const state: SessionState = {
     connectionState,
     error,
@@ -614,7 +668,8 @@ export function useBuzzSession({
     state,
     selectedChannel,
     discoveredChannels,
-    selectChannel: setSelectedChannelId,
+    selectChannel,
+    revealMessage,
     ...mutations,
     search,
     notifyTyping,

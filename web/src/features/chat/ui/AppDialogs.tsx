@@ -1,5 +1,5 @@
-import { Compass, Hash, LoaderCircle, Plus, Search, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Compass, Hash, LoaderCircle, MessageCircle, Plus, Search, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { BuzzChannel, SearchHit, UserProfile } from "@/features/chat/lib/chat-types";
 import { t } from "@/shared/i18n";
 import { truncatePubkey } from "@/shared/lib/pubkey";
@@ -162,19 +162,27 @@ export function SearchDialog({
   onSelectChannel,
   onBrowseChannels,
   onCreateChannel,
+  onNewDm,
+  scopeChannel = null,
 }: {
   channels: BuzzChannel[];
   profiles: Record<string, UserProfile>;
   onClose: () => void;
-  onSearch: (term: string) => Promise<SearchHit[]>;
+  onSearch: (term: string, channelId?: string) => Promise<SearchHit[]>;
   onSelect: (hit: SearchHit) => void;
   onSelectChannel: (channelId: string) => void;
   onBrowseChannels: () => void;
   onCreateChannel?: () => void;
+  onNewDm?: () => void;
+  scopeChannel?: BuzzChannel | null;
 }) {
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<SearchHit[]>([]);
   const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
   useEffect(() => {
     if (term.trim().length < 2) {
       setResults([]);
@@ -182,26 +190,32 @@ export function SearchDialog({
     }
     const timer = window.setTimeout(() => {
       setLoading(true);
-      void onSearch(term)
+      void onSearch(term, scopeChannel?.id)
         .then(setResults)
         .finally(() => setLoading(false));
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [onSearch, term]);
+  }, [onSearch, scopeChannel?.id, term]);
+  const title = scopeChannel
+    ? t("dialog.searchChannel", { channel: scopeChannel.name })
+    : t("dialog.searchMessages");
   return (
-    <DialogFrame title={t("dialog.searchMessages")} width="max-w-2xl" onClose={onClose}>
+    <DialogFrame title={title} width="max-w-2xl" onClose={onClose}>
       <div className="flex h-12 items-center gap-2 border-b px-4">
         <Search className="h-4 w-4 text-muted-foreground" />
         <input
+          ref={inputRef}
           className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-          placeholder={t("dialog.searchRelay")}
+          placeholder={
+            scopeChannel ? t("dialog.searchChannelPlaceholder") : t("dialog.searchRelay")
+          }
           value={term}
           onChange={(event) => setTerm(event.target.value)}
         />
         {loading ? <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
       </div>
       <div className="buzz-scrollbar max-h-[60dvh] overflow-y-auto p-2">
-        {term.trim().length < 2 ? (
+        {term.trim().length < 2 && !scopeChannel ? (
           <div>
             <div className="flex items-center gap-2 px-2 pb-2">
               <button
@@ -226,6 +240,19 @@ export function SearchDialog({
                 >
                   <Plus className="h-4 w-4 text-muted-foreground" />
                   {t("dialog.createChannel")}
+                </button>
+              ) : null}
+              {onNewDm ? (
+                <button
+                  className="inline-flex h-8 items-center gap-2 rounded-md px-2.5 text-xs font-medium hover:bg-foreground/6"
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onNewDm();
+                  }}
+                >
+                  <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                  {t("workspace.tool.new-dm")}
                 </button>
               ) : null}
             </div>

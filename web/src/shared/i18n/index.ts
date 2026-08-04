@@ -102,6 +102,11 @@ const messages = {
   "dialog.noMessages": { en: "No messages found", "zh-CN": "没有找到消息" },
   "dialog.relaySession": { en: "Relay session", "zh-CN": "Relay 会话" },
   "dialog.searchMembers": { en: "Search members or agents", "zh-CN": "搜索成员或 Agent" },
+  "dialog.searchChannel": { en: "Search #{channel}", "zh-CN": "在 #{channel} 中搜索" },
+  "dialog.searchChannelPlaceholder": {
+    en: "Search this channel",
+    "zh-CN": "搜索当前频道",
+  },
   "dialog.searchMessages": { en: "Search messages", "zh-CN": "搜索消息" },
   "dialog.searchRelay": { en: "Search this Relay", "zh-CN": "搜索当前 Relay" },
   "dialog.signOut": { en: "Sign out", "zh-CN": "退出身份" },
