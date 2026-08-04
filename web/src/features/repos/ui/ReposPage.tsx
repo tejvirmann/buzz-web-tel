@@ -49,15 +49,13 @@ function SearchEmptyState() {
 
 function CommunityEmptyState({ relayUrl }: { relayUrl: string }) {
   return (
-    <div className="flex flex-1 items-center justify-center bg-[#F3F3F3] px-4 py-16 text-center dark:bg-[#171717]">
+    <div className="flex flex-1 items-center justify-center bg-background px-4 py-16 text-center">
       <div className="flex w-full max-w-xl flex-col items-center px-6 py-10 sm:px-12 sm:py-12">
         <div className="h-16 w-16 overflow-hidden bg-black" style={{ borderRadius: "22.37%" }}>
           <img alt="Buzz" className="h-full w-full" src={buzzAppIcon} />
         </div>
-        <h1 className="mt-6 text-2xl font-semibold tracking-tight text-black dark:text-white">
-          {t("repos.communityEmpty")}
-        </h1>
-        <p className="mt-2 max-w-md text-sm leading-relaxed text-black/60 dark:text-white/60">
+        <h1 className="mt-6 text-2xl font-semibold text-foreground">{t("repos.communityEmpty")}</h1>
+        <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
           {t("repos.communityEmptyDescription")}
         </p>
         <ConnectButton className="mt-6" relayUrl={relayUrl} />
@@ -117,9 +115,9 @@ export function ReposPage({ relayUrl }: { relayUrl: string }) {
 
   if (isLoading) {
     return (
-      <div className="flex w-full flex-1 gap-8 bg-[#F3F3F3] px-4 py-8 dark:bg-[#171717]">
+      <div className="flex w-full flex-1 gap-8 bg-background px-4 py-8">
         <div className="min-w-0 flex-1">
-          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-black dark:text-white">
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
             <BookMarked className="h-4 w-4" /> {t("repos.title")}
           </h2>
           <div className="divide-y">
@@ -138,7 +136,7 @@ export function ReposPage({ relayUrl }: { relayUrl: string }) {
   }
 
   return (
-    <div className="flex w-full flex-1 gap-8 bg-[#F3F3F3] px-4 py-8 dark:bg-[#171717]">
+    <div className="mx-auto flex w-full max-w-[1440px] flex-1 gap-8 bg-background px-4 py-8 text-foreground sm:px-6">
       {/* Main content */}
       <div className="min-w-0 flex-1">
         {/* Mobile-only connect button */}
@@ -146,7 +144,7 @@ export function ReposPage({ relayUrl }: { relayUrl: string }) {
           <ConnectButton className="w-full" relayUrl={relayUrl} />
         </div>
 
-        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-black dark:text-white">
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
           <BookMarked className="h-4 w-4" /> {t("repos.title")}
         </h2>
 
@@ -156,13 +154,13 @@ export function ReposPage({ relayUrl }: { relayUrl: string }) {
             placeholder={t("repos.searchHint")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 border-black/10 bg-white text-black placeholder:text-black/40 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-white/40"
+            className="flex-1 border-border bg-card text-foreground placeholder:text-muted-foreground"
           />
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortOrder)}
             aria-label={t("repos.sort")}
-            className="rounded-md border border-black/10 bg-white px-3 py-1 text-sm text-black shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-black dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus-visible:ring-white"
+            className="rounded-md border bg-card px-3 py-1 text-sm text-foreground shadow-xs"
           >
             <option value="newest">{t("repos.sortNewest")}</option>
             <option value="oldest">{t("repos.sortOldest")}</option>
@@ -172,7 +170,7 @@ export function ReposPage({ relayUrl }: { relayUrl: string }) {
 
         {/* Repo list */}
         {filteredRepos.length > 0 ? (
-          <div className="divide-y divide-black/10 dark:divide-white/10">
+          <div className="grid gap-3 md:grid-cols-2">
             {filteredRepos.map((repo) => (
               <RepoListItem key={repo.id} repo={repo} preview={showMockRepos} />
             ))}
@@ -183,7 +181,7 @@ export function ReposPage({ relayUrl }: { relayUrl: string }) {
       </div>
 
       {/* Sidebar */}
-      <aside className="hidden w-72 shrink-0 border-l border-black/10 pl-8 dark:border-white/10 lg:block">
+      <aside className="hidden w-72 shrink-0 border-l pl-8 lg:block">
         <OrgSidebar relayUrl={relayUrl} repos={repos} />
       </aside>
     </div>

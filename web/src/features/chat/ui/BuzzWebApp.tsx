@@ -9,7 +9,7 @@ import type { BuzzChannel, TimelineMessage } from "@/features/chat/lib/chat-type
 import { conversationDraftKey } from "@/features/chat/lib/conversation-drafts";
 import { useBuzzSession } from "@/features/chat/lib/use-buzz-session";
 import { useRelayUserState } from "@/features/chat/lib/use-relay-user-state";
-import { NewDmDialog, SearchDialog } from "@/features/chat/ui/AppDialogs";
+import { SearchDialog } from "@/features/chat/ui/AppDialogs";
 import { AppNavigation } from "@/features/chat/ui/AppNavigation";
 import {
   ArchiveChannelDialog,
@@ -23,6 +23,7 @@ import { MemberDialog } from "@/features/chat/ui/MemberPanel";
 import { MessageComposer } from "@/features/chat/ui/MessageComposer";
 import { DeleteMessageDialog, EditMessageDialog } from "@/features/chat/ui/MessageDialogs";
 import { MessageList } from "@/features/chat/ui/MessageList";
+import { NewDmView } from "@/features/chat/ui/NewDmView";
 import { useRightPanelWidth } from "@/features/chat/ui/RightPanelSizing";
 import { SettingsDialog } from "@/features/chat/ui/SettingsDialog";
 import { ThreadPanel } from "@/features/chat/ui/ThreadPanel";
@@ -39,7 +40,7 @@ import { loadRuntimeConfig, type RuntimeConfig } from "@/shared/config/runtime-c
 import { resolveRelayFeatures } from "@/shared/features/relay-features";
 import { t } from "@/shared/i18n";
 
-type DialogName = "browse" | "dm" | "search" | "settings" | "invite" | null;
+type DialogName = "browse" | "search" | "settings" | "invite" | null;
 
 function Workspace({
   config,
@@ -295,7 +296,7 @@ function Workspace({
         onBrowseChannels={() => openChannelBrowser()}
         onInvite={() => setDialog("invite")}
         onSwitchIdentity={handleSignOut}
-        onNewDm={() => setDialog("dm")}
+        onNewDm={() => toggleTool("new-dm")}
         onShowMessages={showMessages}
         onToggleTool={toggleTool}
         onSearch={() => setDialog("search")}
@@ -450,7 +451,15 @@ function Workspace({
                   inbox.respondToApproval(item.event, approved)
                 }
               />
-            ) : (
+            ) : activeTool === "new-dm" ? (
+              <NewDmView
+                currentPubkey={pubkey}
+                profiles={state.profiles}
+                relayUrl={config.relayUrl}
+                onClose={() => setActiveTool(null)}
+                onOpen={openAgentDm}
+              />
+            ) : activeTool === "repos" ? (
               <ReposPanel
                 demo={demo}
                 profiles={state.profiles}
@@ -458,7 +467,7 @@ function Workspace({
                 onClose={() => setActiveTool(null)}
                 onOpenChannel={selectChannel}
               />
-            )}
+            ) : null}
           </WorkspaceToolPanel>
         ) : threadRoot ? (
           <ThreadPanel
@@ -548,15 +557,6 @@ function Workspace({
           onJoin={session.joinChannel}
           onSelect={selectChannel}
           onSetArchived={session.setChannelArchived}
-        />
-      ) : null}
-      {dialog === "dm" ? (
-        <NewDmDialog
-          currentPubkey={pubkey}
-          profiles={state.profiles}
-          relayUrl={config.relayUrl}
-          onClose={() => setDialog(null)}
-          onOpen={session.openDm}
         />
       ) : null}
       {dialog === "search" ? (

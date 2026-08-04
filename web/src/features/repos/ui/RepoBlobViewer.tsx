@@ -247,7 +247,7 @@ export function RepoBlobPage({ relayUrl }: { relayUrl: string }) {
 
   if (ctxError) {
     return (
-      <div className="flex-1 bg-[#F3F3F3] px-4 py-8 text-black dark:bg-[#171717] dark:text-white">
+      <div className="flex-1 bg-background px-4 py-8 text-foreground">
         <BackLink repoId={repoId} preview={showMockBlob} />
         <p className="mt-4 text-sm text-destructive">
           {t("error.repoLoad")}: {ctxError.message}
@@ -257,7 +257,7 @@ export function RepoBlobPage({ relayUrl }: { relayUrl: string }) {
   }
 
   return (
-    <div className="flex-1 bg-[#F3F3F3] px-4 py-8 text-black dark:bg-[#171717] dark:text-white">
+    <div className="flex-1 bg-background px-4 py-8 text-foreground">
       <BackLink repoId={repoId} preview={showMockBlob} />
 
       <div className="mt-4 flex flex-wrap items-center gap-3">

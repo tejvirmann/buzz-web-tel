@@ -1,5 +1,4 @@
 import {
-  ArrowLeft,
   LoaderCircle,
   MessageSquare,
   MoreVertical,
@@ -15,6 +14,7 @@ import { useState } from "react";
 import type { RelayAgent } from "@/features/agents/lib/relay-agents";
 import type { BuzzChannel, UserProfile } from "@/features/chat/lib/chat-types";
 import { Avatar } from "@/features/chat/ui/Avatar";
+import { RightPanelResizeHandle, useRightPanelWidth } from "@/features/chat/ui/RightPanelSizing";
 import { t } from "@/shared/i18n";
 import { truncatePubkey } from "@/shared/lib/pubkey";
 
@@ -57,9 +57,14 @@ function AgentDetail({
   profiles,
   relayUrl,
   pendingAction,
+  startingPubkey,
+  maximumWidth,
+  minimumWidth,
+  panelWidth,
   onBack,
-  onClose,
+  onResize,
   onSetChannel,
+  onStartAgent,
   onOpenDm,
 }: {
   agent: RelayAgent;
@@ -67,51 +72,57 @@ function AgentDetail({
   profiles: Readonly<Record<string, UserProfile>>;
   relayUrl: string;
   pendingAction: string | null;
+  startingPubkey: string | null;
+  maximumWidth: number;
+  minimumWidth: number;
+  panelWidth: number;
   onBack: () => void;
-  onClose: () => void;
+  onResize: (width: number) => void;
   onSetChannel: (agentPubkey: string, channelId: string, shouldJoin: boolean) => Promise<void>;
+  onStartAgent: (pubkey: string) => Promise<void>;
   onOpenDm: (pubkey: string) => Promise<void>;
 }) {
   const assignableChannels = channels.filter((channel) => channel.type !== "dm");
   const profile = { ...(profiles[agent.pubkey] ?? fallbackProfile(agent)), isAgent: true };
 
   return (
-    <div className="buzz-scrollbar min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-[1120px] px-5 py-8 sm:px-8 lg:px-12 lg:py-10">
-        <header className="flex items-center gap-3">
-          <button
-            aria-label={t("agents.backToList")}
-            className="buzz-icon-button"
-            title={t("agents.backToList")}
-            type="button"
-            onClick={onBack}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <h2 className="min-w-0 flex-1 truncate text-xl font-semibold">{agent.name}</h2>
-          <button
-            aria-label={t("agents.close")}
-            className="buzz-icon-button"
-            title={t("agents.close")}
-            type="button"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </header>
-
-        <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <aside
+      aria-label={t("agents.manage", { name: agent.name })}
+      className="absolute inset-y-0 right-0 z-30 flex min-h-0 shrink-0 flex-col border-l bg-background/98 shadow-xl max-sm:!w-full"
+      style={{ width: panelWidth }}
+    >
+      <RightPanelResizeHandle
+        label={t("agents.resize")}
+        maximum={maximumWidth}
+        minimum={minimumWidth}
+        panelWidth={panelWidth}
+        onResize={onResize}
+      />
+      <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
+        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{agent.name}</h2>
+        <button
+          aria-label={t("agents.closeProfile")}
+          className="buzz-icon-button h-7 w-7 flex-none"
+          title={t("agents.closeProfile")}
+          type="button"
+          onClick={onBack}
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </header>
+      <div className="buzz-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="space-y-6">
           <div>
-            <div className="flex items-start gap-4 border-b pb-7">
+            <div className="flex items-start gap-3 border-b pb-5">
               <Avatar
                 profile={profile}
                 relayUrl={relayUrl}
-                size={72}
+                size={56}
                 showStatus
                 status={agent.status}
               />
               <div className="min-w-0 flex-1">
-                <h3 className="break-words text-2xl font-semibold">{agent.name}</h3>
+                <h3 className="break-words text-lg font-semibold">{agent.name}</h3>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span className="rounded-full border px-2.5 py-1 text-[10px] font-medium text-muted-foreground">
                     {t("agents.remote")}
@@ -132,18 +143,35 @@ function AgentDetail({
                   </p>
                 ) : null}
               </div>
+            </div>
+
+            <div className="mt-3 flex gap-2">
               <button
-                aria-label={t("agents.message")}
-                className="inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs font-medium hover:bg-foreground/5"
+                className="inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md border px-3 text-xs font-medium hover:bg-foreground/5"
                 type="button"
                 onClick={() => void onOpenDm(agent.pubkey)}
               >
                 <MessageSquare className="h-4 w-4" />
                 {t("agents.message")}
               </button>
+              {agent.status === "offline" && agent.startable ? (
+                <button
+                  className="inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md bg-foreground px-3 text-xs font-medium text-background disabled:opacity-50"
+                  disabled={startingPubkey !== null}
+                  type="button"
+                  onClick={() => void onStartAgent(agent.pubkey)}
+                >
+                  {startingPubkey === agent.pubkey ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Play className="h-4 w-4 fill-current" />
+                  )}
+                  {t("agents.start", { name: agent.name })}
+                </button>
+              ) : null}
             </div>
 
-            <dl className="grid gap-6 border-b py-7 sm:grid-cols-2">
+            <dl className="grid gap-5 border-b py-5 sm:grid-cols-2">
               <div>
                 <dt className="text-xs font-medium text-muted-foreground">
                   {t("agents.responsePolicy")}
@@ -182,7 +210,7 @@ function AgentDetail({
             </dl>
           </div>
 
-          <section>
+          <section className="pb-3">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold">{t("agents.channels")}</h3>
               <span className="shrink-0 text-xs text-muted-foreground">
@@ -240,7 +268,7 @@ function AgentDetail({
           </section>
         </div>
       </div>
-    </div>
+    </aside>
   );
 }
 
@@ -276,6 +304,12 @@ export function AgentsView({
   const [selectedPubkey, setSelectedPubkey] = useState<string | null>(null);
   const [defaultsOpen, setDefaultsOpen] = useState(false);
   const selected = agents.find((agent) => agent.pubkey === selectedPubkey) ?? null;
+  const {
+    maximum: maximumAgentWidth,
+    minimum: minimumAgentWidth,
+    panelWidth: agentPanelWidth,
+    setPanelWidth: setAgentPanelWidth,
+  } = useRightPanelWidth("agent");
   const runningCount = agents.filter((agent) => agent.status !== "offline").length;
   const channelTeams = channels
     .filter((channel) => channel.type !== "dm")
@@ -285,215 +319,221 @@ export function AgentsView({
     }))
     .filter((team) => team.agents.length > 0);
 
-  if (selected) {
-    return (
-      <AgentDetail
-        agent={selected}
-        channels={channels}
-        pendingAction={pendingAction}
-        profiles={profiles}
-        relayUrl={relayUrl}
-        onBack={() => setSelectedPubkey(null)}
-        onClose={onClose}
-        onOpenDm={onOpenDm}
-        onSetChannel={onSetChannel}
-      />
-    );
-  }
-
   return (
-    <div className="buzz-scrollbar min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-[1280px] px-5 py-8 sm:px-8 lg:px-12 lg:py-10">
-        <header className="relative flex flex-col gap-4 sm:flex-row sm:items-start">
-          <div className="min-w-0 flex-1 pr-10 sm:pr-0">
-            <h2 className="text-[26px] font-semibold leading-tight">{t("agents.title")}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{t("agents.subtitle")}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
+    <div className="relative flex min-h-0 flex-1 overflow-hidden">
+      <div className="buzz-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-[1280px] px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
+          <header className="relative flex flex-col gap-4 sm:flex-row sm:items-start">
+            <div className="min-w-0 flex-1 pr-10 sm:pr-0">
+              <h2 className="text-[22px] font-semibold leading-tight">{t("agents.title")}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{t("agents.subtitle")}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <button
+                  aria-expanded={defaultsOpen}
+                  className="inline-flex h-9 items-center gap-2 rounded-md border bg-background/25 px-3 text-xs font-medium hover:bg-foreground/5"
+                  type="button"
+                  onClick={() => setDefaultsOpen((open) => !open)}
+                >
+                  <Settings2 className="h-4 w-4" />
+                  {t("agents.defaults")}
+                </button>
+                {defaultsOpen ? (
+                  <div className="absolute right-0 top-11 z-20 w-64 rounded-lg border bg-popover p-4 shadow-lg">
+                    <div className="text-xs font-semibold">{t("agents.defaults")}</div>
+                    <dl className="mt-3 space-y-3 text-xs">
+                      <div className="flex justify-between gap-4">
+                        <dt className="text-muted-foreground">{t("agents.responsePolicy")}</dt>
+                        <dd>{t("agents.respondDefault")}</dd>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <dt className="text-muted-foreground">{t("field.status")}</dt>
+                        <dd>{t("agents.runningCount", { count: runningCount })}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                ) : null}
+              </div>
               <button
-                aria-expanded={defaultsOpen}
-                className="inline-flex h-9 items-center gap-2 rounded-md border bg-background/25 px-3 text-xs font-medium hover:bg-foreground/5"
+                aria-label={t("common.refresh")}
+                className="buzz-icon-button"
+                disabled={loading}
+                title={t("common.refresh")}
                 type="button"
-                onClick={() => setDefaultsOpen((open) => !open)}
+                onClick={onRefresh}
               >
-                <Settings2 className="h-4 w-4" />
-                {t("agents.defaults")}
+                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               </button>
-              {defaultsOpen ? (
-                <div className="absolute right-0 top-11 z-20 w-64 rounded-lg border bg-popover p-4 shadow-lg">
-                  <div className="text-xs font-semibold">{t("agents.defaults")}</div>
-                  <dl className="mt-3 space-y-3 text-xs">
-                    <div className="flex justify-between gap-4">
-                      <dt className="text-muted-foreground">{t("agents.responsePolicy")}</dt>
-                      <dd>{t("agents.respondDefault")}</dd>
+              <button
+                aria-label={t("agents.close")}
+                className="buzz-icon-button absolute right-0 top-0 sm:static"
+                title={t("agents.close")}
+                type="button"
+                onClick={onClose}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </header>
+
+          {error ? (
+            <div className="mt-5 rounded-md bg-destructive/8 px-3 py-2 text-xs text-destructive">
+              {error}
+            </div>
+          ) : null}
+
+          <section className="mt-7">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {agents.map((agent) => {
+                const profile = {
+                  ...(profiles[agent.pubkey] ?? fallbackProfile(agent)),
+                  isAgent: true,
+                };
+                return (
+                  <article
+                    key={agent.pubkey}
+                    className="relative flex min-h-[300px] flex-col rounded-lg border bg-background/25 p-4"
+                  >
+                    <button
+                      aria-label={t("agents.manage", { name: agent.name })}
+                      className="buzz-icon-button absolute right-3 top-3"
+                      title={t("agents.manage", { name: agent.name })}
+                      type="button"
+                      onClick={() => setSelectedPubkey(agent.pubkey)}
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+
+                    <button
+                      aria-label={t("agents.manage", { name: agent.name })}
+                      className="mx-auto mt-12 flex h-28 w-28 items-center justify-center rounded-full bg-foreground/[0.035]"
+                      type="button"
+                      onClick={() => setSelectedPubkey(agent.pubkey)}
+                    >
+                      <Avatar
+                        profile={profile}
+                        relayUrl={relayUrl}
+                        size={104}
+                        showStatus
+                        status={agent.status}
+                      />
+                    </button>
+
+                    <div className="absolute left-1/2 top-[142px] ml-8 flex h-10 w-10 items-center justify-center">
+                      {agent.status === "offline" && agent.startable ? (
+                        <button
+                          aria-label={t("agents.start", { name: agent.name })}
+                          className="flex h-10 w-10 items-center justify-center rounded-full bg-foreground text-background shadow-sm hover:opacity-90 disabled:opacity-70"
+                          disabled={startingPubkey !== null}
+                          title={t("agents.start", { name: agent.name })}
+                          type="button"
+                          onClick={() => void onStartAgent(agent.pubkey)}
+                        >
+                          {startingPubkey === agent.pubkey ? (
+                            <LoaderCircle className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Play className="ml-0.5 h-4 w-4 fill-current" />
+                          )}
+                        </button>
+                      ) : (
+                        <span
+                          aria-label={statusLabel(agent.status)}
+                          className={`h-5 w-5 rounded-full border-[3px] border-background shadow-sm ${
+                            agent.status === "online"
+                              ? "bg-emerald-500"
+                              : agent.status === "away"
+                                ? "bg-amber-500"
+                                : "bg-neutral-400"
+                          }`}
+                          role="img"
+                          title={statusLabel(agent.status)}
+                        />
+                      )}
                     </div>
-                    <div className="flex justify-between gap-4">
-                      <dt className="text-muted-foreground">{t("field.status")}</dt>
-                      <dd>{t("agents.runningCount", { count: runningCount })}</dd>
+
+                    <div className="mt-auto pt-8">
+                      <div className="truncate text-sm font-semibold">{agent.name}</div>
+                      <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                        <span
+                          className={
+                            agent.status === "online"
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : ""
+                          }
+                        >
+                          {statusLabel(agent.status)}
+                        </span>
+                        <span>·</span>
+                        <span className="truncate">{responsePolicy(agent)}</span>
+                      </div>
                     </div>
-                  </dl>
+                  </article>
+                );
+              })}
+            </div>
+
+            {loading && !agents.length ? (
+              <div className="flex items-center justify-center px-3 py-16 text-sm text-muted-foreground">
+                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                {t("agents.loading")}
+              </div>
+            ) : null}
+            {!loading && !agents.length ? (
+              <div className="px-3 py-16 text-center text-sm text-muted-foreground">
+                {t("agents.empty")}
+              </div>
+            ) : null}
+          </section>
+
+          <section className="mt-10 pb-8">
+            <h3 className="text-xl font-semibold">{t("agents.teams")}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{t("agents.teamsDescription")}</p>
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {channelTeams.map(({ channel, agents: teamAgents }) => (
+                <div
+                  key={channel.id}
+                  className="flex min-h-20 items-center gap-3 rounded-lg border p-4"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground/[0.055]">
+                    <Users className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold">#{channel.name}</div>
+                    <div className="mt-1 truncate text-xs text-muted-foreground">
+                      {teamAgents.map((agent) => agent.name).join(", ")}
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{teamAgents.length}</span>
+                </div>
+              ))}
+              {!channelTeams.length ? (
+                <div className="flex min-h-20 items-center justify-center rounded-lg border border-dashed px-4 text-sm text-muted-foreground">
+                  {t("agents.noTeams")}
                 </div>
               ) : null}
             </div>
-            <button
-              aria-label={t("common.refresh")}
-              className="buzz-icon-button"
-              disabled={loading}
-              title={t("common.refresh")}
-              type="button"
-              onClick={onRefresh}
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            </button>
-            <button
-              aria-label={t("agents.close")}
-              className="buzz-icon-button absolute right-0 top-0 sm:static"
-              title={t("agents.close")}
-              type="button"
-              onClick={onClose}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </header>
-
-        {error ? (
-          <div className="mt-5 rounded-md bg-destructive/8 px-3 py-2 text-xs text-destructive">
-            {error}
-          </div>
-        ) : null}
-
-        <section className="mt-9">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {agents.map((agent) => {
-              const profile = {
-                ...(profiles[agent.pubkey] ?? fallbackProfile(agent)),
-                isAgent: true,
-              };
-              return (
-                <article
-                  key={agent.pubkey}
-                  className="relative flex min-h-[300px] flex-col rounded-lg border bg-background/25 p-4"
-                >
-                  <button
-                    aria-label={t("agents.manage", { name: agent.name })}
-                    className="buzz-icon-button absolute right-3 top-3"
-                    title={t("agents.manage", { name: agent.name })}
-                    type="button"
-                    onClick={() => setSelectedPubkey(agent.pubkey)}
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-
-                  <button
-                    aria-label={t("agents.manage", { name: agent.name })}
-                    className="mx-auto mt-12 flex h-28 w-28 items-center justify-center rounded-full bg-foreground/[0.035]"
-                    type="button"
-                    onClick={() => setSelectedPubkey(agent.pubkey)}
-                  >
-                    <Avatar
-                      profile={profile}
-                      relayUrl={relayUrl}
-                      size={104}
-                      showStatus
-                      status={agent.status}
-                    />
-                  </button>
-
-                  <div className="absolute left-1/2 top-[142px] ml-8 flex h-10 w-10 items-center justify-center">
-                    {agent.status === "offline" && agent.startable ? (
-                      <button
-                        aria-label={t("agents.start", { name: agent.name })}
-                        className="flex h-10 w-10 items-center justify-center rounded-full bg-foreground text-background shadow-sm hover:opacity-90 disabled:opacity-70"
-                        disabled={startingPubkey !== null}
-                        title={t("agents.start", { name: agent.name })}
-                        type="button"
-                        onClick={() => void onStartAgent(agent.pubkey)}
-                      >
-                        {startingPubkey === agent.pubkey ? (
-                          <LoaderCircle className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Play className="ml-0.5 h-4 w-4 fill-current" />
-                        )}
-                      </button>
-                    ) : (
-                      <span
-                        aria-label={statusLabel(agent.status)}
-                        className={`h-5 w-5 rounded-full border-[3px] border-background shadow-sm ${
-                          agent.status === "online"
-                            ? "bg-emerald-500"
-                            : agent.status === "away"
-                              ? "bg-amber-500"
-                              : "bg-neutral-400"
-                        }`}
-                        role="img"
-                        title={statusLabel(agent.status)}
-                      />
-                    )}
-                  </div>
-
-                  <div className="mt-auto pt-8">
-                    <div className="truncate text-sm font-semibold">{agent.name}</div>
-                    <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                      <span
-                        className={
-                          agent.status === "online" ? "text-emerald-600 dark:text-emerald-400" : ""
-                        }
-                      >
-                        {statusLabel(agent.status)}
-                      </span>
-                      <span>·</span>
-                      <span className="truncate">{responsePolicy(agent)}</span>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-
-          {loading && !agents.length ? (
-            <div className="flex items-center justify-center px-3 py-16 text-sm text-muted-foreground">
-              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-              {t("agents.loading")}
-            </div>
-          ) : null}
-          {!loading && !agents.length ? (
-            <div className="px-3 py-16 text-center text-sm text-muted-foreground">
-              {t("agents.empty")}
-            </div>
-          ) : null}
-        </section>
-
-        <section className="mt-10 pb-8">
-          <h3 className="text-xl font-semibold">{t("agents.teams")}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">{t("agents.teamsDescription")}</p>
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {channelTeams.map(({ channel, agents: teamAgents }) => (
-              <div
-                key={channel.id}
-                className="flex min-h-20 items-center gap-3 rounded-lg border p-4"
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground/[0.055]">
-                  <Users className="h-4 w-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold">#{channel.name}</div>
-                  <div className="mt-1 truncate text-xs text-muted-foreground">
-                    {teamAgents.map((agent) => agent.name).join(", ")}
-                  </div>
-                </div>
-                <span className="text-xs text-muted-foreground">{teamAgents.length}</span>
-              </div>
-            ))}
-            {!channelTeams.length ? (
-              <div className="flex min-h-20 items-center justify-center rounded-lg border border-dashed px-4 text-sm text-muted-foreground">
-                {t("agents.noTeams")}
-              </div>
-            ) : null}
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
+      {selected ? (
+        <AgentDetail
+          agent={selected}
+          channels={channels}
+          maximumWidth={maximumAgentWidth}
+          minimumWidth={minimumAgentWidth}
+          panelWidth={agentPanelWidth}
+          pendingAction={pendingAction}
+          profiles={profiles}
+          relayUrl={relayUrl}
+          startingPubkey={startingPubkey}
+          onBack={() => setSelectedPubkey(null)}
+          onOpenDm={onOpenDm}
+          onResize={setAgentPanelWidth}
+          onSetChannel={onSetChannel}
+          onStartAgent={onStartAgent}
+        />
+      ) : null}
     </div>
   );
 }

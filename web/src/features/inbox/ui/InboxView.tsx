@@ -17,6 +17,7 @@ import { Avatar } from "@/features/chat/ui/Avatar";
 import { MessageContent } from "@/features/chat/ui/MessageContent";
 import type { InboxCategory, InboxItem } from "@/features/inbox/lib/inbox-model";
 import { inboxPreview } from "@/features/inbox/lib/inbox-model";
+import { InboxListResizeHandle, useInboxListWidth } from "@/features/inbox/ui/InboxPanelSizing";
 import { getLocale, t } from "@/shared/i18n";
 import { truncatePubkey } from "@/shared/lib/pubkey";
 
@@ -91,6 +92,11 @@ export function InboxView({
   const [filter, setFilter] = useState<InboxFilter>("all");
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const {
+    maximum: maximumListWidth,
+    panelWidth: listWidth,
+    setPanelWidth: setListWidth,
+  } = useInboxListWidth();
   const visibleItems = useMemo(
     () =>
       items.filter(
@@ -127,9 +133,16 @@ export function InboxView({
     <div className="flex min-h-0 flex-1 overflow-hidden">
       <section
         aria-label={t("inbox.list")}
-        className={`min-h-0 w-full shrink-0 flex-col border-r lg:flex lg:w-[40%] lg:min-w-[340px] lg:max-w-[440px] ${selectedId ? "hidden" : "flex"}`}
+        className={`relative min-h-0 w-full shrink-0 flex-col border-r lg:flex lg:w-[var(--inbox-list-width)] ${selectedId ? "hidden" : "flex"}`}
+        style={{ "--inbox-list-width": `${listWidth}px` } as React.CSSProperties}
       >
-        <header className="flex h-[52px] shrink-0 items-center gap-2 border-b px-3">
+        <InboxListResizeHandle
+          label={t("inbox.resize")}
+          maximum={maximumListWidth}
+          panelWidth={listWidth}
+          onResize={setListWidth}
+        />
+        <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
           <Inbox className="h-[18px] w-[18px] shrink-0 text-muted-foreground lg:hidden" />
           <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold lg:sr-only">
             {t("inbox.title")}
@@ -222,7 +235,7 @@ export function InboxView({
               <button
                 key={item.id}
                 aria-pressed={isSelected}
-                className={`group flex min-h-[108px] w-full gap-3 border-b px-4 py-4 text-left transition-colors ${
+                className={`group flex min-h-[88px] w-full gap-3 border-b px-3 py-3 text-left transition-colors ${
                   isSelected ? "bg-foreground/[0.055]" : "hover:bg-foreground/[0.035]"
                 }`}
                 type="button"
@@ -231,7 +244,7 @@ export function InboxView({
                   onMarkRead(item.id);
                 }}
               >
-                <Avatar profile={profile} relayUrl={relayUrl} size={38} />
+                <Avatar profile={profile} relayUrl={relayUrl} size={34} />
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold">
@@ -283,7 +296,7 @@ export function InboxView({
         aria-label={detailTitle}
         className={`min-h-0 min-w-0 flex-1 flex-col ${selectedId ? "flex" : "hidden lg:flex"}`}
       >
-        <header className="flex h-[52px] shrink-0 items-center gap-2 border-b px-3 sm:px-4">
+        <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
           <button
             aria-label={t("inbox.backToList")}
             className="buzz-icon-button lg:!hidden"

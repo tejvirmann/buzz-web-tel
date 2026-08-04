@@ -1,7 +1,6 @@
 import { Compass, Hash, LoaderCircle, Plus, Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { BuzzChannel, SearchHit, UserProfile } from "@/features/chat/lib/chat-types";
-import { Avatar } from "@/features/chat/ui/Avatar";
 import { t } from "@/shared/i18n";
 import { truncatePubkey } from "@/shared/lib/pubkey";
 
@@ -151,74 +150,6 @@ export function CreateChannelForm({
         </button>
       </div>
     </form>
-  );
-}
-
-export function NewDmDialog({
-  profiles,
-  currentPubkey,
-  relayUrl,
-  onClose,
-  onOpen,
-}: {
-  profiles: Record<string, UserProfile>;
-  currentPubkey: string;
-  relayUrl: string;
-  onClose: () => void;
-  onOpen: (pubkey: string) => Promise<unknown>;
-}) {
-  const [query, setQuery] = useState("");
-  const [opening, setOpening] = useState<string | null>(null);
-  const options = useMemo(
-    () =>
-      Object.values(profiles)
-        .filter((profile) => profile.pubkey !== currentPubkey)
-        .filter((profile) => profile.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
-        .sort(
-          (left, right) =>
-            Number(right.isAgent) - Number(left.isAgent) || left.name.localeCompare(right.name),
-        ),
-    [currentPubkey, profiles, query],
-  );
-  return (
-    <DialogFrame title={t("dialog.newDm")} onClose={onClose}>
-      <div className="border-b p-3">
-        <div className="flex h-9 items-center gap-2 rounded-md border bg-background px-3">
-          <Search className="h-4 w-4 text-muted-foreground" />
-          <input
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-            placeholder={t("dialog.searchMembers")}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
-      </div>
-      <div className="buzz-scrollbar max-h-96 overflow-y-auto p-2">
-        {options.map((profile) => (
-          <button
-            key={profile.pubkey}
-            className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-foreground/5"
-            disabled={opening !== null}
-            type="button"
-            onClick={() => {
-              setOpening(profile.pubkey);
-              void onOpen(profile.pubkey)
-                .then(onClose)
-                .finally(() => setOpening(null));
-            }}
-          >
-            <Avatar profile={profile} relayUrl={relayUrl} size={34} />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">{profile.name}</div>
-              <div className="truncate text-xs text-muted-foreground">
-                {profile.isAgent ? t("member.remoteAgent") : profile.about}
-              </div>
-            </div>
-            {opening === profile.pubkey ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-          </button>
-        ))}
-      </div>
-    </DialogFrame>
   );
 }
 

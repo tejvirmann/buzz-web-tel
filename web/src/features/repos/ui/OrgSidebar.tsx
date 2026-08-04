@@ -31,7 +31,7 @@ export function OrgSidebar({ repos, relayUrl }: { repos: Repo[]; relayUrl: strin
       {/* People section */}
       {uniquePubkeys.length > 0 && (
         <div>
-          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-black dark:text-white">
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
             <Users className="h-4 w-4" />
             {t("repos.people")}
           </h3>
@@ -41,7 +41,7 @@ export function OrgSidebar({ repos, relayUrl }: { repos: Repo[]; relayUrl: strin
             ))}
           </div>
           {overflowCount > 0 && (
-            <span className="mt-2 block text-xs text-black/50 dark:text-white/50">
+            <span className="mt-2 block text-xs text-muted-foreground">
               {t("repos.peopleCount", { count: uniquePubkeys.length })}
             </span>
           )}

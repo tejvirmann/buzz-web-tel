@@ -98,6 +98,20 @@ test("desktop navigation opens a remote-agent DM", async ({ page }) => {
   await expect(page.getByLabel("Send a message to Codex(remote)")).toBeVisible();
 });
 
+test("new direct message uses the workspace To picker", async ({ page }) => {
+  await enableDemo(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "New direct message" }).click();
+  const newDm = page.getByTestId("workspace-tool-new-dm");
+  await expect(newDm.getByRole("heading", { name: "New direct message" })).toBeVisible();
+  await newDm.getByLabel("Search members or agents").fill("Codex");
+  await newDm.getByRole("button", { name: /Codex\(remote\)/ }).click();
+
+  await expect(newDm).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Codex(remote)" })).toBeVisible();
+});
+
 test("Relay feature state controls preview navigation without local settings", async ({ page }) => {
   await enableDemo(page, { features: { projects: false, forum: false } });
   await page.goto("/");
@@ -522,7 +536,9 @@ test("community admins can add a member or generate an invite link", async ({ pa
   });
 });
 
-test("remote agents can be inspected, assigned to channels, and messaged", async ({ page }) => {
+test("remote agents open in a resizable profile panel and keep their controls", async ({
+  page,
+}) => {
   await enableDemo(page);
   await page.goto("/");
 
@@ -537,21 +553,55 @@ test("remote agents can be inspected, assigned to channels, and messaged", async
   await expect(agentsPanel.getByRole("button", { name: "Stop running agents" })).toHaveCount(0);
 
   await agentsPanel.getByRole("button", { name: "Manage Codex(remote)" }).first().click();
-  await expect(agentsPanel.getByRole("button", { name: "Back to agents" })).toBeVisible();
-  await expect(agentsPanel.getByText("Agent default", { exact: true })).toBeVisible();
+  const profile = agentsPanel.getByRole("complementary", { name: "Manage Codex(remote)" });
+  await expect(profile).toBeVisible();
+  await expect(profile.getByRole("separator", { name: "Resize agent profile" })).toBeVisible();
+  await expect(agentsPanel.getByRole("heading", { name: "Agents" })).toBeVisible();
+  await expect(profile.getByText("Agent default", { exact: true })).toBeVisible();
 
-  const remove = agentsPanel.getByRole("button", { name: "Remove from #general" });
+  const remove = profile.getByRole("button", { name: "Remove from #general" });
   await remove.click();
-  await expect(agentsPanel.getByRole("button", { name: "Add to #general" })).toBeVisible();
-  await agentsPanel.getByRole("button", { name: "Add to #general" }).click();
-  await expect(agentsPanel.getByRole("button", { name: "Remove from #general" })).toBeVisible();
+  await expect(profile.getByRole("button", { name: "Add to #general" })).toBeVisible();
+  await profile.getByRole("button", { name: "Add to #general" }).click();
+  await expect(profile.getByRole("button", { name: "Remove from #general" })).toBeVisible();
   await page.screenshot({
     path: "test-results/visual/buzz-web-agents.png",
     animations: "disabled",
   });
 
-  await agentsPanel.getByRole("button", { name: "Message", exact: true }).click();
+  await profile.getByRole("button", { name: "Message", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Codex(remote)" })).toBeVisible();
+});
+
+test("Inbox list width is resizable and persists", async ({ page }) => {
+  await page.setViewportSize({ width: 1720, height: 900 });
+  await enableDemo(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Inbox" }).first().click();
+
+  const separator = page.getByRole("separator", { name: "Resize Inbox list" });
+  const before = await separator.evaluate(
+    (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
+  );
+  expect(before).toBeGreaterThanOrEqual(310);
+  expect(before).toBeLessThanOrEqual(320);
+  const handle = await separator.boundingBox();
+  expect(handle).not.toBeNull();
+  await page.mouse.move((handle?.x ?? 0) + 2, (handle?.y ?? 0) + 120);
+  await page.mouse.down();
+  await page.mouse.move((handle?.x ?? 0) + 90, (handle?.y ?? 0) + 120);
+  await page.mouse.up();
+
+  const resized = await separator.evaluate(
+    (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
+  );
+  expect(resized).toBeGreaterThan(before + 70);
+  await page.reload();
+  await page.getByRole("button", { name: "Inbox" }).first().click();
+  const restored = await separator.evaluate(
+    (element) => element.parentElement?.getBoundingClientRect().width ?? 0,
+  );
+  expect(Math.abs(restored - resized)).toBeLessThan(2);
 });
 
 test("an offline agent play button starts its service without opening a DM", async ({ page }) => {

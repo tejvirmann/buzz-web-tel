@@ -297,10 +297,10 @@ export function ReposPanel({
 
   return (
     <div className="buzz-scrollbar min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-[1280px] px-5 py-8 sm:px-8 lg:px-12 lg:py-10">
+      <div className="mx-auto w-full max-w-[1280px] px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
         <header className="flex items-start gap-4">
           <div className="min-w-0 flex-1">
-            <h2 className="text-[26px] font-semibold leading-tight">{t("nav.projects")}</h2>
+            <h2 className="text-[22px] font-semibold leading-tight">{t("nav.projects")}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{t("repos.subtitle")}</p>
           </div>
           <button
@@ -331,7 +331,7 @@ export function ReposPanel({
         ) : null}
 
         {!selected ? (
-          <div className="mt-10 flex items-end gap-4 border-b">
+          <div className="mt-7 flex items-end gap-4 border-b">
             <div className="flex min-w-0 flex-1 gap-6 overflow-x-auto" role="tablist">
               {(
                 [
@@ -512,11 +512,11 @@ export function ReposPanel({
                 <option value="name">{t("repos.sortName")}</option>
               </select>
             </div>
-            <div className="mt-4 divide-y rounded-lg border bg-background/20">
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
               {filteredRepos.map((repo) => (
                 <button
                   key={`${repo.owner}:${repo.id}`}
-                  className="flex w-full items-start gap-3 px-4 py-4 text-left hover:bg-foreground/[0.035]"
+                  className="flex min-h-[124px] w-full items-start gap-3 rounded-lg border bg-background/20 px-4 py-4 text-left hover:bg-foreground/[0.035]"
                   type="button"
                   onClick={() => setSelectedRepoId(repo.id)}
                 >
