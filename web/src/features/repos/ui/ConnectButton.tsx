@@ -1,10 +1,10 @@
 import { ExternalLink } from "lucide-react";
 
-import { relayWsUrl } from "@/shared/lib/relay-url";
+import { t } from "@/shared/i18n";
 import { Button } from "@/shared/ui/button";
 
-export function ConnectButton({ className }: { className?: string }) {
-  const deepLink = `buzz://connect?relay=${encodeURIComponent(relayWsUrl())}`;
+export function ConnectButton({ relayUrl, className }: { relayUrl: string; className?: string }) {
+  const deepLink = `buzz://connect?relay=${encodeURIComponent(relayUrl)}`;
 
   return (
     <Button
@@ -13,7 +13,7 @@ export function ConnectButton({ className }: { className?: string }) {
     >
       <a href={deepLink}>
         <ExternalLink className="h-4 w-4" />
-        Open in Buzz
+        {t("repos.openBuzz")}
       </a>
     </Button>
   );

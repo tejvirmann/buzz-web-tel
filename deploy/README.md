@@ -1,5 +1,7 @@
 # Buzz Web 部署
 
+[English](README.en.md) | [简体中文](README.md)
+
 Buzz Web 是连接现有 Buzz Relay 的静态单页客户端。Web 容器与 Relay 完全隔离，不会修改 Relay 进程、网络或数据卷。Compose 默认只把 Web 绑定到 `127.0.0.1:3001`。
 
 ## 路由结构

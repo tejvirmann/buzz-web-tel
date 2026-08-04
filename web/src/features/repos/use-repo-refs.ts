@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { type NostrEvent, queryEvents } from "@/shared/lib/nostr-client";
-import { relayWsUrl } from "@/shared/lib/relay-url";
 import { dedup } from "./use-repos";
 
 export interface RepoRefs {
@@ -48,18 +47,21 @@ function parseRefs(events: NostrEvent[]): RepoRefs {
   return { branches, tags, head };
 }
 
-async function fetchRepoRefs(repoId: string): Promise<RepoRefs> {
+async function fetchRepoRefs(relayUrl: string, repoId: string): Promise<RepoRefs> {
   // TODO: Filter by `authors: [relayPubkey]` once the relay's own pubkey is
   // exposed to the client. Without this, a user with ReposWrite permission
   // could publish fake kind:30618 events with spoofed refs.
-  const events = await queryEvents(relayWsUrl(), {
+  const events = await queryEvents(relayUrl, {
     kinds: [30618],
     "#d": [repoId],
   });
   return parseRefs(events);
 }
 
-export function useRepoRefs(repoId: string, { preview = false } = {}) {
+export function useRepoRefs(
+  repoId: string,
+  { relayUrl, preview = false }: { relayUrl: string; preview?: boolean },
+) {
   const mockRefs: RepoRefs = {
     branches: ["main"],
     tags: ["v0.1.0"],
@@ -67,8 +69,8 @@ export function useRepoRefs(repoId: string, { preview = false } = {}) {
   };
 
   return useQuery({
-    queryKey: preview ? ["repo-refs", "mock", repoId] : ["repo-refs", repoId],
-    queryFn: preview ? async () => mockRefs : () => fetchRepoRefs(repoId),
+    queryKey: preview ? ["repo-refs", "mock", repoId] : ["repo-refs", relayUrl, repoId],
+    queryFn: preview ? async () => mockRefs : () => fetchRepoRefs(relayUrl, repoId),
     initialData: preview ? mockRefs : undefined,
     staleTime: 60_000,
   });

@@ -6,6 +6,7 @@
  */
 
 import { makeAuthEvent } from "nostr-tools/nip42";
+import { t } from "@/shared/i18n";
 import { type SignedNostrEvent, signNostrEvent } from "@/shared/lib/nostr-signer";
 
 export interface NostrFilter {
@@ -42,7 +43,7 @@ export function queryEvents(wsUrl: string, filter: NostrFilter): Promise<NostrEv
       if (!settled) {
         settled = true;
         ws.close();
-        reject(new Error(`Relay query timed out after ${QUERY_TIMEOUT_MS}ms`));
+        reject(new Error(t("error.relayQueryTimeout")));
       }
     }, QUERY_TIMEOUT_MS);
 
@@ -99,9 +100,7 @@ export function queryEvents(wsUrl: string, filter: NostrFilter): Promise<NostrEv
           if (!settled) {
             settled = true;
             cleanup();
-            reject(
-              error instanceof Error ? error : new Error("Failed to sign relay authentication."),
-            );
+            reject(error instanceof Error ? error : new Error(t("error.relayAuthFailed")));
           }
         }
         return;
@@ -113,7 +112,7 @@ export function queryEvents(wsUrl: string, filter: NostrFilter): Promise<NostrEv
         } else if (!settled) {
           settled = true;
           cleanup();
-          reject(new Error(typeof data[3] === "string" ? data[3] : "Relay authentication failed."));
+          reject(new Error(typeof data[3] === "string" ? data[3] : t("error.relayAuthFailed")));
         }
         return;
       }
@@ -131,7 +130,7 @@ export function queryEvents(wsUrl: string, filter: NostrFilter): Promise<NostrEv
         if (!settled) {
           settled = true;
           cleanup();
-          const reason = typeof data[2] === "string" ? data[2] : "subscription closed by relay";
+          const reason = typeof data[2] === "string" ? data[2] : t("error.relaySubscriptionClosed");
           reject(new Error(reason));
         }
       } else if (type === "NOTICE") {
@@ -143,7 +142,7 @@ export function queryEvents(wsUrl: string, filter: NostrFilter): Promise<NostrEv
       if (!settled) {
         settled = true;
         cleanup();
-        reject(new Error("WebSocket connection failed"));
+        reject(new Error(t("error.relayConnect")));
       }
     });
 

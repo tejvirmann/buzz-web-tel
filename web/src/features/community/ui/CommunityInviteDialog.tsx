@@ -118,7 +118,7 @@ export function CommunityInviteDialog({
               {t("invite.memberIdentity")}
               <input
                 className="mt-1.5 h-9 w-full rounded-md border bg-background px-3 font-mono text-xs outline-none focus:ring-2 focus:ring-primary/30"
-                placeholder="npub1… / 64-char hex"
+                placeholder={t("invite.memberIdentityPlaceholder")}
                 value={identity}
                 onChange={(event) => setIdentity(event.target.value)}
               />

@@ -119,8 +119,8 @@ export function CreateChannelDialog({
               value={type}
               onChange={(event) => setType(event.target.value as "stream" | "forum")}
             >
-              <option value="stream">Stream</option>
-              {allowForum ? <option value="forum">Forum</option> : null}
+              <option value="stream">{t("dialog.channelTypeStream")}</option>
+              {allowForum ? <option value="forum">{t("dialog.channelTypeForum")}</option> : null}
             </select>
           </label>
           <label className="block text-xs font-medium">
@@ -130,8 +130,8 @@ export function CreateChannelDialog({
               value={visibility}
               onChange={(event) => setVisibility(event.target.value as "open" | "private")}
             >
-              <option value="open">Open</option>
-              <option value="private">Private</option>
+              <option value="open">{t("dialog.visibilityOpen")}</option>
+              <option value="private">{t("dialog.visibilityPrivate")}</option>
             </select>
           </label>
         </div>

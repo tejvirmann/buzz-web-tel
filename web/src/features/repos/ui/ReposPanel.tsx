@@ -257,7 +257,7 @@ export function ReposPanel({
   onClose: () => void;
   onOpenChannel: (channelId: string) => void;
 }) {
-  const query = useRepos({ enabled: !demo });
+  const query = useRepos({ relayUrl, enabled: !demo });
   const repos = demo ? mockRepos : (query.data ?? []);
   const [activeTab, setActiveTab] = useState<ProjectTab>("overview");
   const [search, setSearch] = useState("");

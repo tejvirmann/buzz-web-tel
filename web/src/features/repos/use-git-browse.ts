@@ -20,10 +20,10 @@ import {
  * Ensure the repo is cloned (or fetched) into IndexedDB.
  * Other hooks depend on this to get `fs` and `dir`.
  */
-export function useGitClone(owner: string, repoName: string, ref: string) {
+export function useGitClone(relayUrl: string, owner: string, repoName: string, ref: string) {
   return useQuery({
-    queryKey: ["git-clone", owner, repoName, ref],
-    queryFn: () => ensureClone(owner, repoName, ref),
+    queryKey: ["git-clone", relayUrl, owner, repoName, ref],
+    queryFn: () => ensureClone(relayUrl, owner, repoName, ref),
     staleTime: 5 * 60_000,
     enabled: !!owner && !!repoName && !!ref,
     retry: false,
@@ -31,11 +31,17 @@ export function useGitClone(owner: string, repoName: string, ref: string) {
 }
 
 /** Read tree entries at a path (or root). Directories first, then files, alphabetical. */
-export function useGitTree(owner: string, repoName: string, ref: string, path?: string) {
-  const cloneQuery = useGitClone(owner, repoName, ref);
+export function useGitTree(
+  relayUrl: string,
+  owner: string,
+  repoName: string,
+  ref: string,
+  path?: string,
+) {
+  const cloneQuery = useGitClone(relayUrl, owner, repoName, ref);
 
   return useQuery({
-    queryKey: ["git-tree", owner, repoName, ref, path ?? ""],
+    queryKey: ["git-tree", relayUrl, owner, repoName, ref, path ?? ""],
     queryFn: async () => {
       if (!cloneQuery.data) throw new Error("unreachable: enabled guards data");
       const { fs, dir } = cloneQuery.data;
@@ -55,11 +61,11 @@ export function useGitTree(owner: string, repoName: string, ref: string, path?: 
 }
 
 /** Get recent commits for the given ref. */
-export function useGitLog(owner: string, repoName: string, ref: string) {
-  const cloneQuery = useGitClone(owner, repoName, ref);
+export function useGitLog(relayUrl: string, owner: string, repoName: string, ref: string) {
+  const cloneQuery = useGitClone(relayUrl, owner, repoName, ref);
 
   return useQuery({
-    queryKey: ["git-log", owner, repoName, ref],
+    queryKey: ["git-log", relayUrl, owner, repoName, ref],
     queryFn: async () => {
       if (!cloneQuery.data) throw new Error("unreachable: enabled guards data");
       const { fs, dir } = cloneQuery.data;
@@ -71,11 +77,11 @@ export function useGitLog(owner: string, repoName: string, ref: string) {
 }
 
 /** Find and read the README from the repo root. */
-export function useGitReadme(owner: string, repoName: string, ref: string) {
-  const cloneQuery = useGitClone(owner, repoName, ref);
+export function useGitReadme(relayUrl: string, owner: string, repoName: string, ref: string) {
+  const cloneQuery = useGitClone(relayUrl, owner, repoName, ref);
 
   return useQuery({
-    queryKey: ["git-readme", owner, repoName, ref],
+    queryKey: ["git-readme", relayUrl, owner, repoName, ref],
     queryFn: async () => {
       if (!cloneQuery.data) throw new Error("unreachable: enabled guards data");
       const { fs, dir } = cloneQuery.data;
@@ -87,11 +93,17 @@ export function useGitReadme(owner: string, repoName: string, ref: string) {
 }
 
 /** Read a single file's content as a classified `BlobView`. */
-export function useGitBlob(owner: string, repoName: string, ref: string, filepath: string) {
-  const cloneQuery = useGitClone(owner, repoName, ref);
+export function useGitBlob(
+  relayUrl: string,
+  owner: string,
+  repoName: string,
+  ref: string,
+  filepath: string,
+) {
+  const cloneQuery = useGitClone(relayUrl, owner, repoName, ref);
 
   return useQuery({
-    queryKey: ["git-blob", owner, repoName, ref, filepath],
+    queryKey: ["git-blob", relayUrl, owner, repoName, ref, filepath],
     queryFn: async () => {
       if (!cloneQuery.data) throw new Error("unreachable: enabled guards data");
       const { fs, dir } = cloneQuery.data;
@@ -110,6 +122,7 @@ export function useGitBlob(owner: string, repoName: string, ref: string, filepat
  * is passed in (the blob view already has it) to avoid a second read.
  */
 export function useGitHtmlDoc(
+  relayUrl: string,
   owner: string,
   repoName: string,
   ref: string,
@@ -117,10 +130,10 @@ export function useGitHtmlDoc(
   html: string,
   enabled: boolean,
 ) {
-  const cloneQuery = useGitClone(owner, repoName, ref);
+  const cloneQuery = useGitClone(relayUrl, owner, repoName, ref);
 
   return useQuery({
-    queryKey: ["git-html-doc", owner, repoName, ref, filepath],
+    queryKey: ["git-html-doc", relayUrl, owner, repoName, ref, filepath],
     queryFn: async () => {
       if (!cloneQuery.data) throw new Error("unreachable: enabled guards data");
       const { fs, dir } = cloneQuery.data;

@@ -5,7 +5,11 @@ import { IdentityGate } from "@/features/chat/ui/IdentityGate";
 import { loadRuntimeConfig, type RuntimeConfig } from "@/shared/config/runtime-config";
 import { t } from "@/shared/i18n";
 
-export function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
+export function AuthenticatedRoute({
+  children,
+}: {
+  children: React.ReactNode | ((config: RuntimeConfig) => React.ReactNode);
+}) {
   const [config, setConfig] = useState<RuntimeConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,5 +36,9 @@ export function AuthenticatedRoute({ children }: { children: React.ReactNode }) 
     );
   }
 
-  return <IdentityGate config={config}>{() => children}</IdentityGate>;
+  return (
+    <IdentityGate config={config}>
+      {() => (typeof children === "function" ? children(config) : children)}
+    </IdentityGate>
+  );
 }

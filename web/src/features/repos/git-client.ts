@@ -17,12 +17,21 @@ if (typeof (globalThis as Record<string, unknown>).Buffer === "undefined") {
 import LightningFS from "@isomorphic-git/lightning-fs";
 import { clone, fetch, log, readBlob, readTree, resolveRef } from "isomorphic-git";
 import http from "isomorphic-git/http/web";
+import { relayHttpOrigin } from "@/shared/config/runtime-config";
 import { makeNip98AuthHeader } from "@/shared/lib/nip98";
-import { relayHttpBaseUrl } from "@/shared/lib/relay-url";
+
+function relayCacheKey(relayUrl: string): string {
+  let hash = 2_166_136_261;
+  for (const character of relayUrl) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return (hash >>> 0).toString(36);
+}
 
 /** Get a repo-specific LightningFS instance backed by IndexedDB. */
-export function getFs(owner: string, repoName: string): LightningFS {
-  return new LightningFS(`buzz-git-${owner}-${repoName}`);
+export function getFs(relayUrl: string, owner: string, repoName: string): LightningFS {
+  return new LightningFS(`buzz-git-${relayCacheKey(relayUrl)}-${owner}-${repoName}`);
 }
 
 /** Working directory inside the virtual FS. */
@@ -30,8 +39,8 @@ export function getDir(owner: string, repoName: string): string {
   return `/${owner}/${repoName}`;
 }
 
-function repoGitUrl(owner: string, repoName: string): string {
-  return `${relayHttpBaseUrl()}/git/${owner}/${repoName}.git`;
+function repoGitUrl(relayUrl: string, owner: string, repoName: string): string {
+  return `${relayHttpOrigin(relayUrl)}/git/${owner}/${repoName}.git`;
 }
 
 /**
@@ -39,13 +48,17 @@ function repoGitUrl(owner: string, repoName: string): string {
  * stripping `/info/refs`, `/git-upload-pack`, `/git-receive-pack`.
  * That means the full path including `.git`.
  */
-function repoAuthUrl(owner: string, repoName: string): string {
-  return `${relayHttpBaseUrl()}/git/${owner}/${repoName}.git`;
+function repoAuthUrl(relayUrl: string, owner: string, repoName: string): string {
+  return `${relayHttpOrigin(relayUrl)}/git/${owner}/${repoName}.git`;
 }
 
-async function authHeaders(owner: string, repoName: string): Promise<Record<string, string>> {
+async function authHeaders(
+  relayUrl: string,
+  owner: string,
+  repoName: string,
+): Promise<Record<string, string>> {
   return {
-    Authorization: await makeNip98AuthHeader(repoAuthUrl(owner, repoName), "GET"),
+    Authorization: await makeNip98AuthHeader(repoAuthUrl(relayUrl, owner, repoName), "GET"),
   };
 }
 
@@ -54,14 +67,15 @@ async function authHeaders(owner: string, repoName: string): Promise<Record<stri
  * the latest for the given ref.
  */
 export async function ensureClone(
+  relayUrl: string,
   owner: string,
   repoName: string,
   ref: string,
 ): Promise<{ fs: LightningFS; dir: string }> {
-  const fs = getFs(owner, repoName);
+  const fs = getFs(relayUrl, owner, repoName);
   const dir = getDir(owner, repoName);
-  const url = repoGitUrl(owner, repoName);
-  const headers = await authHeaders(owner, repoName);
+  const url = repoGitUrl(relayUrl, owner, repoName);
+  const headers = await authHeaders(relayUrl, owner, repoName);
 
   let exists = false;
   try {

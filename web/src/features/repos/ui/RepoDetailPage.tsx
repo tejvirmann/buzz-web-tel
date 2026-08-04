@@ -11,6 +11,7 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AuthenticatedRoute } from "@/features/chat/ui/AuthenticatedRoute";
+import { t } from "@/shared/i18n";
 import { relativeTime } from "@/shared/lib/relative-time";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -33,10 +34,10 @@ function CopyableUrl({ url }: { url: string }) {
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
-      toast.success("Copied to clipboard");
+      toast.success(t("common.copied"));
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Failed to copy to clipboard");
+      toast.error(t("error.clipboard"));
     }
   }
 
@@ -47,7 +48,7 @@ function CopyableUrl({ url }: { url: string }) {
         type="button"
         onClick={handleCopy}
         className="shrink-0 text-black/50 hover:text-black dark:text-white/50 dark:hover:text-white"
-        aria-label="Copy clone URL"
+        aria-label={t("repos.copyClone")}
       >
         {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
       </button>
@@ -78,7 +79,7 @@ function BackToRepositories({ mockPreview = false }: { mockPreview?: boolean }) 
   const content = (
     <>
       <ArrowLeft className="h-4 w-4" />
-      Back to repositories
+      {t("repos.backToList")}
     </>
   );
 
@@ -129,7 +130,7 @@ function RepoTabs({
               : "text-black/50 hover:text-black dark:text-white/50 dark:hover:text-white"
           }`}
         >
-          Code
+          {t("repos.code")}
         </button>
         <button
           type="button"
@@ -140,7 +141,7 @@ function RepoTabs({
               : "text-black/50 hover:text-black dark:text-white/50 dark:hover:text-white"
           }`}
         >
-          Commits
+          {t("repos.commits")}
         </button>
       </div>
 
@@ -161,7 +162,7 @@ function RepoTabs({
   );
 }
 
-export function RepoDetailPage() {
+export function RepoDetailPage({ relayUrl }: { relayUrl: string }) {
   const { repoId } = useParams({ from: "/repos/$repoId" });
   const preview =
     import.meta.env.DEV &&
@@ -173,9 +174,11 @@ export function RepoDetailPage() {
     isLoading,
     error,
   } = useRepo(repoId, {
+    relayUrl,
     preview: showMockRepo,
   });
   const { data: refs, isLoading: refsLoading } = useRepoRefs(repoId, {
+    relayUrl,
     preview: showMockRepo,
   });
 
@@ -188,13 +191,14 @@ export function RepoDetailPage() {
     data: fetchedTreeEntries,
     isLoading: isTreeLoading,
     error: treeError,
-  } = useGitTree(browseOwner, repoName, defaultRef);
+  } = useGitTree(relayUrl, browseOwner, repoName, defaultRef);
   const {
     data: fetchedCommits,
     isLoading: areCommitsLoading,
     error: commitsError,
-  } = useGitLog(browseOwner, repoName, defaultRef);
+  } = useGitLog(relayUrl, browseOwner, repoName, defaultRef);
   const { data: fetchedReadme, isLoading: isReadmeLoading } = useGitReadme(
+    relayUrl,
     browseOwner,
     repoName,
     defaultRef,
@@ -216,7 +220,7 @@ export function RepoDetailPage() {
 
   useEffect(() => {
     if (error) {
-      toast.error("Failed to load repository", {
+      toast.error(t("error.repoLoad"), {
         description: error.message,
       });
     }
@@ -232,10 +236,10 @@ export function RepoDetailPage() {
           <div className="mt-12 text-center">
             <BookMarked className="mx-auto h-10 w-10 text-black/50 dark:text-white/50" />
             <h1 className="mt-4 text-xl font-semibold text-black dark:text-white">
-              Repository not found
+              {t("repos.notFound")}
             </h1>
             <p className="mt-1 text-sm text-black/60 dark:text-white/60">
-              This repository may have been removed or doesn't exist on this relay.
+              {t("repos.notFoundDescription")}
             </p>
           </div>
         </div>
@@ -253,7 +257,7 @@ export function RepoDetailPage() {
 
         {/* Mobile-only connect button */}
         <div className="mt-4 lg:hidden">
-          <ConnectButton className="w-full" />
+          <ConnectButton className="w-full" relayUrl={relayUrl} />
         </div>
 
         {/* Header */}
@@ -267,7 +271,7 @@ export function RepoDetailPage() {
               variant="outline"
               className="border-black/15 text-black/60 dark:border-white/15 dark:text-white/60"
             >
-              Public
+              {t("repos.public")}
             </Badge>
           </div>
           {repo.description && (
@@ -276,7 +280,7 @@ export function RepoDetailPage() {
             </p>
           )}
           <p className="mt-2 text-xs text-black/50 dark:text-white/50">
-            Updated {relativeTime(repo.createdAt)}
+            {t("repos.updated", { time: relativeTime(repo.createdAt) })}
           </p>
         </div>
 
@@ -286,7 +290,7 @@ export function RepoDetailPage() {
         {/* Clone/browse error banner */}
         {browseError && (
           <div className="mt-6 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            Failed to load repository contents:{" "}
+            {t("error.repoContentsLoad")}:{" "}
             {browseError instanceof Error ? browseError.message : String(browseError)}
           </div>
         )}
@@ -306,7 +310,9 @@ export function RepoDetailPage() {
         {/* Clone URLs */}
         {repo.cloneUrls.length > 0 && (
           <div className="mt-8">
-            <h2 className="mb-3 text-sm font-semibold text-black dark:text-white">Clone</h2>
+            <h2 className="mb-3 text-sm font-semibold text-black dark:text-white">
+              {t("repos.clone")}
+            </h2>
             <div className="space-y-2">
               {repo.cloneUrls.map((url) => (
                 <CopyableUrl key={url} url={url} />
@@ -334,7 +340,7 @@ export function RepoDetailPage() {
               >
                 <a href={safe} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="h-4 w-4" />
-                  View on web
+                  {t("repos.viewWeb")}
                 </a>
               </Button>
             </div>
@@ -351,7 +357,7 @@ export function RepoDetailPage() {
             >
               <a href={`/channels/${repo.channelId}`}>
                 <MessageSquare className="h-4 w-4" />
-                View channel
+                {t("repos.viewChannel")}
               </a>
             </Button>
           </div>
@@ -362,13 +368,13 @@ export function RepoDetailPage() {
       <aside className="hidden w-72 shrink-0 border-l border-black/10 pl-8 dark:border-white/10 lg:block">
         <div className="space-y-6">
           {/* Open in Buzz */}
-          <ConnectButton className="w-full" />
+          <ConnectButton className="w-full" relayUrl={relayUrl} />
 
           {/* People */}
           <div>
             <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-black dark:text-white">
               <Users className="h-4 w-4" />
-              People
+              {t("repos.people")}
             </h3>
             <div className="flex flex-wrap gap-2">
               <PubkeyAvatar pubkey={repo.owner} />
@@ -388,7 +394,7 @@ export function RepoDetailPage() {
 export function AuthenticatedRepoDetailPage() {
   return (
     <AuthenticatedRoute>
-      <RepoDetailPage />
+      {(config) => <RepoDetailPage relayUrl={config.relayUrl} />}
     </AuthenticatedRoute>
   );
 }

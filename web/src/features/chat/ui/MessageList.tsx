@@ -69,7 +69,7 @@ export function MessageRow({
           <strong className="truncate text-sm font-semibold text-foreground">{profile.name}</strong>
           {profile.isAgent ? (
             <span className="rounded bg-primary/12 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-primary">
-              Agent
+              {t("common.agent")}
             </span>
           ) : null}
           <time className="shrink-0 text-[11px] text-muted-foreground">

@@ -18,9 +18,20 @@ export interface RepoContext {
   error: Error | null;
 }
 
-export function useRepoContext(repoId: string, { preview = false } = {}): RepoContext {
-  const { data: repo, isLoading: repoLoading, error: repoError } = useRepo(repoId, { preview });
+export function useRepoContext(
+  repoId: string,
+  { relayUrl, preview = false }: { relayUrl: string; preview?: boolean },
+): RepoContext {
+  const {
+    data: repo,
+    isLoading: repoLoading,
+    error: repoError,
+  } = useRepo(repoId, {
+    relayUrl,
+    preview,
+  });
   const { data: refs, isLoading: refsLoading } = useRepoRefs(repoId, {
+    relayUrl,
     preview,
   });
 

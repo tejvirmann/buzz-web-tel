@@ -1,13 +1,14 @@
 import { Users } from "lucide-react";
 import { useMemo } from "react";
 
+import { t } from "@/shared/i18n";
 import type { Repo } from "../use-repos";
 import { ConnectButton } from "./ConnectButton";
 import { PubkeyAvatar } from "./PubkeyAvatar";
 
 const MAX_AVATARS = 20;
 
-export function OrgSidebar({ repos }: { repos: Repo[] }) {
+export function OrgSidebar({ repos, relayUrl }: { repos: Repo[]; relayUrl: string }) {
   const uniquePubkeys = useMemo(() => {
     const set = new Set<string>();
     for (const repo of repos) {
@@ -25,14 +26,14 @@ export function OrgSidebar({ repos }: { repos: Repo[] }) {
   return (
     <div className="space-y-6">
       {/* Open in Buzz */}
-      <ConnectButton className="w-full" />
+      <ConnectButton className="w-full" relayUrl={relayUrl} />
 
       {/* People section */}
       {uniquePubkeys.length > 0 && (
         <div>
           <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-black dark:text-white">
             <Users className="h-4 w-4" />
-            People
+            {t("repos.people")}
           </h3>
           <div className="flex flex-wrap gap-2">
             {visiblePubkeys.map((pk) => (
@@ -41,7 +42,7 @@ export function OrgSidebar({ repos }: { repos: Repo[] }) {
           </div>
           {overflowCount > 0 && (
             <span className="mt-2 block text-xs text-black/50 dark:text-white/50">
-              {uniquePubkeys.length} people
+              {t("repos.peopleCount", { count: uniquePubkeys.length })}
             </span>
           )}
         </div>

@@ -1,4 +1,5 @@
 import { GitCommit } from "lucide-react";
+import { t } from "@/shared/i18n";
 import { relativeTime } from "@/shared/lib/relative-time";
 import type { CommitInfo } from "../git-client";
 
@@ -10,7 +11,10 @@ function CommitRow({ commit }: { commit: CommitInfo }) {
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{firstLine}</p>
         <p className="mt-0.5 text-xs text-black/50 dark:text-white/50">
-          {commit.author.name} committed {relativeTime(commit.author.timestamp)}
+          {t("repos.committed", {
+            actor: commit.author.name,
+            time: relativeTime(commit.author.timestamp),
+          })}
         </p>
       </div>
       <code className="shrink-0 self-center rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-black/50 dark:bg-white/10 dark:text-white/50">
@@ -32,7 +36,7 @@ export function RepoCommitsSection({
       <div className="mt-8">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-black dark:text-white">
           <GitCommit className="h-4 w-4" />
-          Recent commits
+          {t("repos.recentCommits")}
         </h2>
         <div className="rounded-lg border border-black/10 dark:border-white/10">
           {["sk-1", "sk-2", "sk-3"].map((key) => (
@@ -58,7 +62,7 @@ export function RepoCommitsSection({
     <div className="mt-8">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-black dark:text-white">
         <GitCommit className="h-4 w-4" />
-        Recent commits
+        {t("repos.recentCommits")}
       </h2>
       <div className="overflow-hidden rounded-lg border border-black/10 bg-white/50 dark:border-white/10 dark:bg-white/5">
         {commits.map((commit) => (

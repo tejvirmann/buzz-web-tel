@@ -244,7 +244,10 @@ function Workspace({
                 )}
                 <h1 className="truncate text-[15px] font-semibold">{displayName}</h1>
                 {selectedChannel?.visibility === "private" ? (
-                  <Lock className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Private" />
+                  <Lock
+                    className="h-3 w-3 shrink-0 text-muted-foreground"
+                    aria-label={t("common.private")}
+                  />
                 ) : null}
               </div>
               {selectedChannel ? (

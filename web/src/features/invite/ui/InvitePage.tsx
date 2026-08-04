@@ -1,8 +1,11 @@
+import { X } from "lucide-react";
 import * as React from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import buzzAppIcon from "@/assets/app-icon@3x.png";
 import { claimInviteInBrowser } from "@/features/invite/invite-api";
+import { relayHttpOrigin } from "@/shared/config/runtime-config";
+import { t } from "@/shared/i18n";
 import {
   BUZZ_RELEASES_URL,
   type BuzzDownloadPlatform,
@@ -10,7 +13,6 @@ import {
   resolveBuzzDownloadUrlForPlatform,
 } from "@/shared/lib/buzz-download";
 import { hasNip07Provider } from "@/shared/lib/nostr-signer";
-import { relayWsUrl } from "@/shared/lib/relay-url";
 import { Button } from "@/shared/ui/button";
 
 import { InviteJoinPolicyNotice } from "./InviteJoinPolicyNotice";
@@ -27,20 +29,21 @@ type PolicyDocument = { title: string; markdown: string };
 /** Convert relay invite sentinels into user-facing recovery guidance. */
 function inviteClaimErrorMessage(message: string): string {
   if (message.includes("invite_exhausted")) {
-    return "This invite has reached its use limit. Ask for a new invite.";
+    return t("invite.inviteExhausted");
   }
   if (message.includes("invite_expired")) {
-    return "This invite has expired. Ask for a new invite.";
+    return t("invite.inviteExpired");
   }
   if (message.includes("invite_invalid")) {
-    return "This invite is invalid. Check the link or ask for a new invite.";
+    return t("invite.inviteInvalid");
   }
   return message;
 }
 
 /** Landing page for a community invite link (`/invite/<code>`). */
-export function InvitePage({ code }: { code: string }) {
-  const relay = relayWsUrl();
+export function InvitePage({ code, relayUrl }: { code: string; relayUrl: string }) {
+  const relay = relayUrl;
+  const relayHttp = relayHttpOrigin(relay);
   const host = relay.replace(/^wss?:\/\//, "");
   const [policy, setPolicy] = React.useState<JoinPolicy | null | undefined>(undefined);
   const [document, setDocument] = React.useState<PolicyDocument | null>(null);
@@ -73,18 +76,18 @@ export function InvitePage({ code }: { code: string }) {
   }, []);
 
   React.useEffect(() => {
-    fetch("/api/join-policy")
+    fetch(`${relayHttp}/api/join-policy`)
       .then(async (response) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const config = (await response.json()) as { policy?: JoinPolicy };
         setPolicy(config.policy ?? null);
       })
       .catch(() => setPolicy(undefined));
-  }, []);
+  }, [relayHttp]);
 
   const acceptPolicy = async (): Promise<string | undefined> => {
     if (!policy) return undefined;
-    const response = await fetch("/api/invites/accept-policy", {
+    const response = await fetch(`${relayHttp}/api/invites/accept-policy`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -114,10 +117,10 @@ export function InvitePage({ code }: { code: string }) {
     setJoiningBrowser(true);
     try {
       const receipt = await acceptPolicy();
-      await claimInviteInBrowser(code, receipt);
+      await claimInviteInBrowser(relay, code, receipt);
       window.location.assign("/");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not claim this invite.";
+      const message = error instanceof Error ? error.message : t("invite.claimFailed");
       setBrowserJoinError(inviteClaimErrorMessage(message));
     } finally {
       setJoiningBrowser(false);
@@ -181,7 +184,7 @@ export function InvitePage({ code }: { code: string }) {
             <img alt="Buzz" className="h-full w-full" src={buzzAppIcon} />
           </div>
           <h1 className="mt-4 text-2xl font-semibold tracking-tight text-black">
-            You&apos;re invited to
+            {t("invite.invitedTo")}
           </h1>
           <p className="mt-9 font-mono text-lg text-black/70">{host}</p>
 
@@ -213,7 +216,7 @@ export function InvitePage({ code }: { code: string }) {
                 disabled={disabled}
                 onClick={joinInBrowser}
               >
-                {joiningBrowser ? "Joining…" : "Join in browser"}
+                {joiningBrowser ? t("invite.joining") : t("invite.joinBrowser")}
               </Button>
             ) : null}
             {policy === null ? (
@@ -228,7 +231,7 @@ export function InvitePage({ code }: { code: string }) {
                 <a
                   href={`buzz://join?relay=${encodeURIComponent(relay)}&code=${encodeURIComponent(code)}`}
                 >
-                  Accept invite in Buzz
+                  {t("invite.acceptInBuzz")}
                 </a>
               </Button>
             ) : (
@@ -241,7 +244,7 @@ export function InvitePage({ code }: { code: string }) {
                 disabled={disabled}
                 onClick={openInvite}
               >
-                Accept invite in Buzz
+                {t("invite.acceptInBuzz")}
               </Button>
             )}
             {browserJoinError ? (
@@ -252,7 +255,7 @@ export function InvitePage({ code }: { code: string }) {
           </div>
         </div>
         <p className="flex h-[3.125rem] items-center justify-center rounded-2xl bg-white text-sm text-black/60">
-          Don&apos;t have the app?{" "}
+          {t("invite.noApp")}{" "}
           <a
             aria-expanded={needsMacChoice ? showMacChoice : undefined}
             aria-haspopup={needsMacChoice ? "dialog" : undefined}
@@ -267,14 +270,14 @@ export function InvitePage({ code }: { code: string }) {
               setShowMacChoice(true);
             }}
           >
-            Download it now
+            {t("invite.downloadNow")}
           </a>
         </p>
       </div>
 
       {showMacChoice && (
         <div
-          aria-label="Which Mac do you have?"
+          aria-label={t("invite.macChooser")}
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 text-left"
           role="dialog"
@@ -285,18 +288,16 @@ export function InvitePage({ code }: { code: string }) {
           <div className="w-full max-w-lg rounded-3xl bg-white p-7 text-black shadow-xl sm:p-9">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-semibold tracking-tight">Which Mac do you have?</h2>
-                <p className="mt-2 text-sm text-black/60">
-                  Choose based on when your Mac was released.
-                </p>
+                <h2 className="text-2xl font-semibold tracking-tight">{t("invite.macChooser")}</h2>
+                <p className="mt-2 text-sm text-black/60">{t("invite.macChooserDescription")}</p>
               </div>
               <button
-                aria-label="Close"
-                className="text-2xl leading-none text-black/60 hover:text-black"
+                aria-label={t("common.close")}
+                className="text-black/60 hover:text-black"
                 type="button"
                 onClick={closeMacChoice}
               >
-                ×
+                <X className="h-5 w-5" />
               </button>
             </div>
             <div className="mt-6 grid gap-3">
@@ -311,10 +312,8 @@ export function InvitePage({ code }: { code: string }) {
                   })
                 }
               >
-                <strong className="block text-lg">Newer Mac</strong>
-                <span className="mt-1 block text-sm">
-                  2021 or later, or a late-2020 Mac with an Apple M1 chip
-                </span>
+                <strong className="block text-lg">{t("invite.macNewer")}</strong>
+                <span className="mt-1 block text-sm">{t("invite.macNewerDescription")}</span>
               </a>
               <a
                 aria-disabled={choosingMacDownload}
@@ -327,16 +326,12 @@ export function InvitePage({ code }: { code: string }) {
                   })
                 }
               >
-                <strong className="block text-lg">Older Mac</strong>
-                <span className="mt-1 block text-sm">
-                  2019 or earlier, or a 2020 Mac with an Intel processor
-                </span>
+                <strong className="block text-lg">{t("invite.macOlder")}</strong>
+                <span className="mt-1 block text-sm">{t("invite.macOlderDescription")}</span>
               </a>
             </div>
             <p className="mt-5 text-sm leading-5">
-              <strong>Not sure?</strong> Open the Apple menu and choose{" "}
-              <strong>About This Mac</strong>. “Chip: Apple M…” means Newer Mac. “Processor: Intel”
-              means Older Mac.
+              <strong>{t("invite.macNotSure")}</strong> {t("invite.macInstructions")}
             </p>
           </div>
         </div>
@@ -356,12 +351,12 @@ export function InvitePage({ code }: { code: string }) {
             <div className="mb-6 flex items-start justify-between gap-4">
               <h2 className="text-xl font-semibold">{document.title}</h2>
               <button
-                aria-label="Close"
-                className="text-2xl leading-none text-black/60 hover:text-black"
+                aria-label={t("common.close")}
+                className="text-black/60 hover:text-black"
                 type="button"
                 onClick={() => setDocument(null)}
               >
-                ×
+                <X className="h-5 w-5" />
               </button>
             </div>
             <div className="prose prose-sm max-w-none">

@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { type NostrEvent, queryEvents } from "@/shared/lib/nostr-client";
-import { relayWsUrl } from "@/shared/lib/relay-url";
 import { mockRepos } from "./mock-repos";
 
 export interface Repo {
@@ -62,26 +61,29 @@ export function dedup(events: NostrEvent[]): NostrEvent[] {
   return [...best.values()];
 }
 
-async function fetchRepos(): Promise<Repo[]> {
-  const events = await queryEvents(relayWsUrl(), { kinds: [30617] });
+async function fetchRepos(relayUrl: string): Promise<Repo[]> {
+  const events = await queryEvents(relayUrl, { kinds: [30617] });
   return dedup(events)
     .map(eventToRepo)
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export function useRepos({ enabled = true }: { enabled?: boolean } = {}) {
+export function useRepos({ relayUrl, enabled = true }: { relayUrl: string; enabled?: boolean }) {
   return useQuery({
-    queryKey: ["repos"],
-    queryFn: fetchRepos,
+    queryKey: ["repos", relayUrl],
+    queryFn: () => fetchRepos(relayUrl),
     enabled,
     staleTime: 60_000,
   });
 }
 
-export function useRepo(repoId: string, { preview = false } = {}) {
+export function useRepo(
+  repoId: string,
+  { relayUrl, preview = false }: { relayUrl: string; preview?: boolean },
+) {
   return useQuery({
-    queryKey: preview ? ["repos", "mock"] : ["repos"],
-    queryFn: preview ? async () => mockRepos : fetchRepos,
+    queryKey: preview ? ["repos", "mock"] : ["repos", relayUrl],
+    queryFn: preview ? async () => mockRepos : () => fetchRepos(relayUrl),
     initialData: preview ? mockRepos : undefined,
     staleTime: 60_000,
     select: (repos) => repos.find((r) => r.id === repoId),

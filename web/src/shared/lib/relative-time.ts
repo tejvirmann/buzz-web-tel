@@ -1,17 +1,15 @@
-/** Format a Unix timestamp (seconds) as a human-readable relative time string. */
-export function relativeTime(unix: number): string {
-  const diff = Date.now() - unix * 1000;
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
+import { getLocale } from "@/shared/i18n";
 
-  if (days > 30) {
-    const months = Math.floor(days / 30);
-    return months === 1 ? "1 month ago" : `${months} months ago`;
-  }
-  if (days > 0) return days === 1 ? "1 day ago" : `${days} days ago`;
-  if (hours > 0) return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
-  if (minutes > 0) return minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;
-  return "just now";
+/** Format a Unix timestamp (seconds) using the browser-selected application locale. */
+export function relativeTime(unix: number): string {
+  const seconds = Math.round(unix - Date.now() / 1_000);
+  const formatter = new Intl.RelativeTimeFormat(getLocale(), { numeric: "auto" });
+  if (Math.abs(seconds) < 60) return formatter.format(seconds, "second");
+  const minutes = Math.round(seconds / 60);
+  if (Math.abs(minutes) < 60) return formatter.format(minutes, "minute");
+  const hours = Math.round(minutes / 60);
+  if (Math.abs(hours) < 24) return formatter.format(hours, "hour");
+  const days = Math.round(hours / 24);
+  if (Math.abs(days) < 30) return formatter.format(days, "day");
+  return formatter.format(Math.round(days / 30), "month");
 }

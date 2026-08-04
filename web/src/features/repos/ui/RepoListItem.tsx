@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { BookMarked } from "lucide-react";
+import { t } from "@/shared/i18n";
 import { truncatePubkey } from "@/shared/lib/pubkey";
 import { relativeTime } from "@/shared/lib/relative-time";
 import { Badge } from "@/shared/ui/badge";
@@ -24,7 +25,7 @@ export function RepoListItem({ repo, preview = false }: { repo: Repo; preview?: 
           variant="outline"
           className="ml-1 border-black/15 text-black/60 dark:border-white/15 dark:text-white/60"
         >
-          Public
+          {t("repos.public")}
         </Badge>
       </div>
 
@@ -43,7 +44,7 @@ export function RepoListItem({ repo, preview = false }: { repo: Repo; preview?: 
           </TooltipTrigger>
           <TooltipContent>{repo.owner}</TooltipContent>
         </Tooltip>
-        <span>Updated {relativeTime(repo.createdAt)}</span>
+        <span>{t("repos.updated", { time: relativeTime(repo.createdAt) })}</span>
       </div>
     </div>
   );

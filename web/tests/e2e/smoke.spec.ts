@@ -53,6 +53,7 @@ async function expectNoViewportOverflow(page: Page) {
 test("chat workspace loads with Buzz branding and relay data", async ({ page }) => {
   await enableDemo(page);
   await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", /app-icon\.png$/);
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute(
     "href",
@@ -555,6 +556,11 @@ test("Chinese browsers receive the Chinese interface", async ({ browser }) => {
   await expect(page.getByRole("button", { name: "搜索" }).first()).toBeVisible();
   await expect(page.getByText("创建了此频道", { exact: true })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+
+  await page.goto("/invite/demo-code");
+  await expect(page.getByRole("heading", { name: "你受邀加入" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "立即下载" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
   await context.close();
 });
 
@@ -657,6 +663,7 @@ test("invite requires age and legal consent before opening Buzz", async ({ page 
 });
 
 test("invite can enroll a NIP-07 identity for browser access", async ({ page }) => {
+  await enableDemo(page);
   const secretKey = generateSecretKey();
   const pubkey = getPublicKey(secretKey);
   await page.exposeFunction("signNostrTestEvent", (event: EventTemplate) =>
@@ -696,6 +703,7 @@ test("invite can enroll a NIP-07 identity for browser access", async ({ page }) 
   await page.route("**/api/invites/claim", async (route) => {
     claimObserved = true;
     const request = route.request();
+    expect(request.url()).toBe("https://relay.example.com/api/invites/claim");
     const body = request.postData() ?? "";
     expect(JSON.parse(body)).toEqual({
       code: "browser-code",

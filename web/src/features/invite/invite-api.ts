@@ -1,5 +1,5 @@
+import { relayHttpOrigin } from "@/shared/config/runtime-config";
 import { makeNip98AuthHeader } from "@/shared/lib/nip98";
-import { relayHttpBaseUrl } from "@/shared/lib/relay-url";
 
 const INVITE_REQUEST_TIMEOUT_MS = 15_000;
 
@@ -11,10 +11,11 @@ export type BrowserInviteClaim = {
 };
 
 export async function claimInviteInBrowser(
+  relayUrl: string,
   code: string,
   policyReceipt?: string,
 ): Promise<BrowserInviteClaim> {
-  const url = `${relayHttpBaseUrl().replace(/\/+$/, "")}/api/invites/claim`;
+  const url = `${relayHttpOrigin(relayUrl)}/api/invites/claim`;
   const body = JSON.stringify({
     code,
     policy_receipt: policyReceipt,

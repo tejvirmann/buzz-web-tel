@@ -1,4 +1,5 @@
 import * as React from "react";
+import { t } from "@/shared/i18n";
 
 type InviteJoinPolicy = {
   terms_markdown?: string;
@@ -98,49 +99,49 @@ export function InviteJoinPolicyNotice({
     >
       {policy.age_attestation_required ? (
         <PolicyCheckbox
-          accessibleLabel="I am 18 years of age or older."
+          accessibleLabel={t("invite.ageAgreement")}
           checked={ageConfirmed}
           onCheckedChange={onAgeConfirmedChange}
         >
-          I am 18 years of age or older.
+          {t("invite.ageAgreement")}
         </PolicyCheckbox>
       ) : null}
 
       {policy.terms_markdown || policy.privacy_markdown ? (
         <PolicyCheckbox
-          accessibleLabel="I agree to the Buzz Terms of Service and Privacy Policy."
+          accessibleLabel={t("invite.policyAgreementAccessible")}
           checked={agreementConfirmed}
           onCheckedChange={onAgreementConfirmedChange}
         >
-          I agree to the Buzz{" "}
+          {t("invite.policyAgreementPrefix")}
           {policy.terms_markdown ? (
             <button
               className="text-black no-underline underline-offset-4 hover:text-black/70 hover:underline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-black"
               type="button"
               onClick={(event) =>
-                stopLabelActivation(event, "Terms of Service", policy.terms_markdown ?? "")
+                stopLabelActivation(event, t("invite.termsOfService"), policy.terms_markdown ?? "")
               }
             >
-              Terms of Service
+              {t("invite.termsOfService")}
             </button>
           ) : (
-            "Terms of Service"
-          )}{" "}
-          and{" "}
+            t("invite.termsOfService")
+          )}
+          {t("invite.policyAgreementAnd")}
           {policy.privacy_markdown ? (
             <button
               className="text-black no-underline underline-offset-4 hover:text-black/70 hover:underline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-black"
               type="button"
               onClick={(event) =>
-                stopLabelActivation(event, "Privacy Policy", policy.privacy_markdown ?? "")
+                stopLabelActivation(event, t("invite.privacyPolicy"), policy.privacy_markdown ?? "")
               }
             >
-              Privacy Policy
+              {t("invite.privacyPolicy")}
             </button>
           ) : (
-            "Privacy Policy"
+            t("invite.privacyPolicy")
           )}
-          .
+          {t("invite.policyAgreementSuffix")}
         </PolicyCheckbox>
       ) : null}
     </div>
