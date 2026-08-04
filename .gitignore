@@ -13,6 +13,7 @@
 .vscode/
 
 # Temporary and backup files
+node_modules/
 *.bak
 *.bak-*
 *.tmp

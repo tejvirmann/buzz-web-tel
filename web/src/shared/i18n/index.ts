@@ -47,6 +47,7 @@ const messages = {
   "agents.responsePolicy": { en: "Responds to", "zh-CN": "响应对象" },
   "agents.runningCount": { en: "{count} running", "zh-CN": "{count} 个运行中" },
   "agents.search": { en: "Search agents", "zh-CN": "搜索 Agent" },
+  "agents.start": { en: "Start {name}", "zh-CN": "启动 {name}" },
   "agents.stopRunning": { en: "Stop running agents", "zh-CN": "停止运行中的 Agent" },
   "agents.subtitle": {
     en: "Set up and manage your agents.",
@@ -244,8 +245,27 @@ const messages = {
   "nav.relayOnline": { en: "Relay online", "zh-CN": "Relay 在线" },
   "nav.resize": { en: "Resize channel panel", "zh-CN": "调整频道面板宽度" },
   "nav.searchEverything": { en: "Search everything", "zh-CN": "搜索全部内容" },
+  "nav.unreadIn": {
+    en: "{count} unread in {name}",
+    "zh-CN": "{name} 中有 {count} 条未读消息",
+  },
   "nav.workflows": { en: "Workflows", "zh-CN": "工作流" },
   "nav.workspace": { en: "Workspace", "zh-CN": "工作区" },
+  "preview.description": {
+    en: "These features are functional but still being refined. Enable them to surface them in Buzz Web.",
+    "zh-CN": "这些功能可以使用，但仍在完善中。启用后才会显示在 Buzz Web 中。",
+  },
+  "preview.forum.description": {
+    en: "Forum-style threaded channels for long-form discussions",
+    "zh-CN": "用于长篇讨论的论坛式线程频道",
+  },
+  "preview.forum.name": { en: "Forum Channels", "zh-CN": "论坛频道" },
+  "preview.projects.description": {
+    en: "Git repository browser and collaboration",
+    "zh-CN": "Git 仓库浏览与协作",
+  },
+  "preview.projects.name": { en: "Projects", "zh-CN": "项目" },
+  "preview.title": { en: "Experiments", "zh-CN": "实验功能" },
   "system.addedBy": { en: "added by {actor}", "zh-CN": "由{actor}添加" },
   "system.archived": { en: "archived this channel", "zh-CN": "归档了此频道" },
   "system.channelCreated": { en: "created this channel", "zh-CN": "创建了此频道" },
@@ -303,6 +323,15 @@ const messages = {
   "error.approvalUpdate": {
     en: "Failed to update the approval.",
     "zh-CN": "审批更新失败。",
+  },
+  "error.agentControlUrlProtocol": {
+    en: "Agent control URL must use HTTPS.",
+    "zh-CN": "Agent 控制地址必须使用 HTTPS。",
+  },
+  "error.agentStart": { en: "Failed to start the agent.", "zh-CN": "Agent 启动失败。" },
+  "error.agentStartUnavailable": {
+    en: "This remote agent has no configured start controller.",
+    "zh-CN": "此远程 Agent 未配置启动控制端。",
   },
   "error.clipboard": { en: "Failed to copy to the clipboard.", "zh-CN": "复制到剪贴板失败。" },
   "error.configLoad": { en: "Failed to load configuration.", "zh-CN": "无法加载配置。" },

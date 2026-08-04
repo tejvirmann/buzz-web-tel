@@ -351,7 +351,7 @@ export function useBuzzSession({
       ),
       demoEvent("c", pubkey, general, "Document the Web client deployment as well.", now - 80),
     ]);
-    setPresence({ [pubkey]: "online", [codex]: "online", [grok]: "away" });
+    setPresence({ [pubkey]: "online", [codex]: "online", [grok]: "offline" });
     setLoadingChannels(false);
   }, [config, demo, pubkey]);
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { startRelayAgent } from "@/features/agents/agent-control-client";
 import { type RelayAgent, relayAgentsFromEvents } from "@/features/agents/lib/relay-agents";
 import type { BuzzChannel, UserProfile } from "@/features/chat/lib/chat-types";
 import type { NostrEvent } from "@/shared/api/nostr-types";
@@ -15,6 +16,7 @@ function mergeEvents(current: NostrEvent[], incoming: NostrEvent[]): NostrEvent[
 export function useRelayAgents({
   client,
   demo,
+  agentControlUrl,
   configuredAgents,
   channels,
   profiles,
@@ -24,6 +26,7 @@ export function useRelayAgents({
 }: {
   client: BuzzRelayClient | null;
   demo: boolean;
+  agentControlUrl: string | null;
   configuredAgents: readonly ConfiguredAgent[];
   channels: readonly BuzzChannel[];
   profiles: Readonly<Record<string, UserProfile>>;
@@ -35,6 +38,7 @@ export function useRelayAgents({
   const [loading, setLoading] = useState(!demo);
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [startingPubkey, setStartingPubkey] = useState<string | null>(null);
   const [demoChannelOverrides, setDemoChannelOverrides] = useState<Record<string, string[]>>({});
 
   const refresh = useCallback(async () => {
@@ -138,5 +142,34 @@ export function useRelayAgents({
     [agents, client, demo, refresh, refreshChannels],
   );
 
-  return { agents, loading, error, pendingAction, refresh, setAgentChannel };
+  const startAgent = useCallback(
+    async (agentPubkey: string) => {
+      const agent = agents.find((candidate) => candidate.pubkey === agentPubkey);
+      if (!agentControlUrl || !agent?.startable) {
+        setError(t("error.agentStartUnavailable"));
+        return;
+      }
+      setStartingPubkey(agentPubkey);
+      setError(null);
+      try {
+        await startRelayAgent(agentControlUrl, agentPubkey);
+      } catch (startError) {
+        setError(startError instanceof Error ? startError.message : t("error.agentStart"));
+      } finally {
+        setStartingPubkey(null);
+      }
+    },
+    [agentControlUrl, agents],
+  );
+
+  return {
+    agents,
+    loading,
+    error,
+    pendingAction,
+    startingPubkey,
+    refresh,
+    setAgentChannel,
+    startAgent,
+  };
 }

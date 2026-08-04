@@ -253,9 +253,11 @@ export function AgentsView({
   loading,
   error,
   pendingAction,
+  startingPubkey,
   onClose,
   onRefresh,
   onSetChannel,
+  onStartAgent,
   onOpenDm,
 }: {
   agents: readonly RelayAgent[];
@@ -265,9 +267,11 @@ export function AgentsView({
   loading: boolean;
   error: string | null;
   pendingAction: string | null;
+  startingPubkey: string | null;
   onClose: () => void;
   onRefresh: () => void;
   onSetChannel: (agentPubkey: string, channelId: string, shouldJoin: boolean) => Promise<void>;
+  onStartAgent: (pubkey: string) => Promise<void>;
   onOpenDm: (pubkey: string) => Promise<void>;
 }) {
   const [selectedPubkey, setSelectedPubkey] = useState<string | null>(null);
@@ -407,15 +411,37 @@ export function AgentsView({
                     />
                   </button>
 
-                  <button
-                    aria-label={t("agents.message")}
-                    className="absolute left-1/2 top-[142px] ml-8 flex h-10 w-10 items-center justify-center rounded-full bg-foreground text-background shadow-sm hover:opacity-90"
-                    title={t("agents.message")}
-                    type="button"
-                    onClick={() => void onOpenDm(agent.pubkey)}
-                  >
-                    <Play className="ml-0.5 h-4 w-4 fill-current" />
-                  </button>
+                  <div className="absolute left-1/2 top-[142px] ml-8 flex h-10 w-10 items-center justify-center">
+                    {agent.status === "offline" && agent.startable ? (
+                      <button
+                        aria-label={t("agents.start", { name: agent.name })}
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-foreground text-background shadow-sm hover:opacity-90 disabled:opacity-70"
+                        disabled={startingPubkey !== null}
+                        title={t("agents.start", { name: agent.name })}
+                        type="button"
+                        onClick={() => void onStartAgent(agent.pubkey)}
+                      >
+                        {startingPubkey === agent.pubkey ? (
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Play className="ml-0.5 h-4 w-4 fill-current" />
+                        )}
+                      </button>
+                    ) : (
+                      <span
+                        aria-label={statusLabel(agent.status)}
+                        className={`h-5 w-5 rounded-full border-[3px] border-background shadow-sm ${
+                          agent.status === "online"
+                            ? "bg-emerald-500"
+                            : agent.status === "away"
+                              ? "bg-amber-500"
+                              : "bg-neutral-400"
+                        }`}
+                        role="img"
+                        title={statusLabel(agent.status)}
+                      />
+                    )}
+                  </div>
 
                   <div className="mt-auto pt-8">
                     <div className="truncate text-sm font-semibold">{agent.name}</div>

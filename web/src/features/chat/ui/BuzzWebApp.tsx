@@ -31,6 +31,7 @@ import { ReposPanel } from "@/features/repos/ui/ReposPanel";
 import { clearMediaObjectUrls } from "@/shared/api/media-client";
 import { BuzzRelayClient } from "@/shared/api/relay-client";
 import { loadRuntimeConfig, type RuntimeConfig } from "@/shared/config/runtime-config";
+import { usePreviewFeatures } from "@/shared/features/preview-features";
 import { t } from "@/shared/i18n";
 
 type DialogName = "create" | "dm" | "search" | "settings" | "invite" | null;
@@ -62,6 +63,7 @@ function Workspace({
   const [threadRootId, setThreadRootId] = useState<string | null>(null);
   const [memberPanelOpen, setMemberPanelOpen] = useState(defaultMemberPanelVisibility);
   const [insertMention, setInsertMention] = useState<string | null>(null);
+  const previewFeatures = usePreviewFeatures();
   const {
     maximum: maximumNavigationWidth,
     panelWidth: navigationWidth,
@@ -71,6 +73,7 @@ function Workspace({
   const relayAgents = useRelayAgents({
     client,
     demo,
+    agentControlUrl: config.agentControlUrl,
     configuredAgents: config.agents,
     channels: state.channels,
     profiles: state.profiles,
@@ -87,9 +90,23 @@ function Workspace({
     channels: state.channels,
     ensureProfiles: session.ensureProfiles,
   });
+  const channelUnreadCounts = useMemo(
+    () =>
+      inbox.items.reduce<Record<string, number>>((counts, item) => {
+        if (item.unread && item.channelId) {
+          counts[item.channelId] = (counts[item.channelId] ?? 0) + 1;
+        }
+        return counts;
+      }, {}),
+    [inbox.items],
+  );
   const threadRoot = state.messages.find((message) => message.event.id === threadRootId) ?? null;
   const canCreateChannel = state.communityRole === "owner" || state.communityRole === "admin";
   const connected = state.connectionState === "connected";
+
+  useEffect(() => {
+    if (activeTool === "repos" && !previewFeatures.enabled.projects) setActiveTool(null);
+  }, [activeTool, previewFeatures.enabled.projects]);
 
   const handleSignOut = () => {
     client?.disconnect();
@@ -97,23 +114,29 @@ function Workspace({
     signOut();
   };
   const selectChannel = (channelId: string) => {
+    inbox.markChannelRead(channelId);
     setActiveTool(null);
     setThreadRootId(null);
     if (!defaultMemberPanelVisibility()) setMemberPanelOpen(false);
     session.selectChannel(channelId);
   };
   const toggleTool = (tool: WorkspaceTool) => {
+    if (activeTool === tool && state.selectedChannelId) {
+      inbox.markChannelRead(state.selectedChannelId);
+    }
     setActiveTool((current) => (current === tool ? null : tool));
     setThreadRootId(null);
     setMemberPanelOpen(false);
     setMobileNavigationOpen(false);
   };
   const showMessages = () => {
+    if (state.selectedChannelId) inbox.markChannelRead(state.selectedChannelId);
     setActiveTool(null);
     setMobileNavigationOpen(false);
   };
   const openInboxConversation = (item: InboxItem) => {
     if (!item.channelId) return;
+    inbox.markChannelRead(item.channelId);
     setActiveTool(null);
     setMobileNavigationOpen(false);
     setMemberPanelOpen(false);
@@ -156,7 +179,9 @@ function Workspace({
         communityName={config.communityName}
         connectionState={state.connectionState}
         currentPubkey={pubkey}
+        channelUnreadCounts={channelUnreadCounts}
         inboxUnreadCount={inbox.unreadCount}
+        previewFeatures={previewFeatures.enabled}
         mobileOpen={mobileNavigationOpen}
         maximumWidth={maximumNavigationWidth}
         panelWidth={navigationWidth}
@@ -287,12 +312,14 @@ function Workspace({
                 error={relayAgents.error}
                 loading={relayAgents.loading}
                 pendingAction={relayAgents.pendingAction}
+                startingPubkey={relayAgents.startingPubkey}
                 profiles={state.profiles}
                 relayUrl={config.relayUrl}
                 onClose={() => setActiveTool(null)}
                 onOpenDm={openAgentDm}
                 onRefresh={() => void relayAgents.refresh()}
                 onSetChannel={relayAgents.setAgentChannel}
+                onStartAgent={relayAgents.startAgent}
               />
             ) : activeTool === "inbox" ? (
               <InboxView
@@ -373,7 +400,11 @@ function Workspace({
       </section>
 
       {dialog === "create" ? (
-        <CreateChannelDialog onClose={() => setDialog(null)} onCreate={session.createChannel} />
+        <CreateChannelDialog
+          allowForum={previewFeatures.enabled.forum}
+          onClose={() => setDialog(null)}
+          onCreate={session.createChannel}
+        />
       ) : null}
       {dialog === "dm" ? (
         <NewDmDialog
@@ -396,9 +427,11 @@ function Workspace({
       {dialog === "settings" ? (
         <SettingsDialog
           connectionState={state.connectionState}
+          previewFeatures={previewFeatures.enabled}
           pubkey={pubkey}
           relayUrl={config.relayUrl}
           onClose={() => setDialog(null)}
+          onSetPreviewFeature={previewFeatures.setEnabled}
           onSignOut={handleSignOut}
         />
       ) : null}

@@ -3,12 +3,14 @@ import { t } from "@/shared/i18n";
 export type ConfiguredAgent = {
   pubkey: string;
   name: string;
+  startable?: boolean;
 };
 
 export type RuntimeConfig = {
   communityName: string;
   relayUrl: string;
   agents: ConfiguredAgent[];
+  agentControlUrl: string | null;
   demoMode: boolean;
 };
 
@@ -30,6 +32,19 @@ function normalizeRelayUrl(value: unknown): string {
   return url.toString().replace(/\/$/, "");
 }
 
+function normalizeAgentControlUrl(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const url = new URL(value, window.location.origin);
+  const localHttp = url.protocol === "http:" && url.hostname === "localhost";
+  if (url.protocol !== "https:" && !localHttp) {
+    throw new Error(t("error.agentControlUrlProtocol"));
+  }
+  url.pathname = url.pathname.replace(/\/$/, "");
+  url.search = "";
+  url.hash = "";
+  return url.toString().replace(/\/$/, "");
+}
+
 export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
   const configUrl = new URL(
     "config.json",
@@ -47,6 +62,7 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
         .map((agent) => ({
           pubkey: String(agent.pubkey).toLowerCase(),
           name: typeof agent.name === "string" && agent.name.trim() ? agent.name.trim() : "Agent",
+          startable: agent.startable === true,
         }))
     : [];
 
@@ -57,6 +73,7 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
         : "Buzz",
     relayUrl: normalizeRelayUrl(raw.relayUrl),
     agents,
+    agentControlUrl: normalizeAgentControlUrl(raw.agentControlUrl),
     demoMode: raw.demoMode === true && import.meta.env.VITE_ENABLE_DEMO === "true",
   };
 }

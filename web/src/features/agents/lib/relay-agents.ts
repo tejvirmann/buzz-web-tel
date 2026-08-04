@@ -15,6 +15,7 @@ export type RelayAgent = {
   status: "online" | "away" | "offline";
   respondTo: AgentRespondTo | null;
   respondToAllowlist: string[];
+  startable: boolean;
 };
 
 function stringArray(value: unknown): string[] {
@@ -53,9 +54,7 @@ export function relayAgentsFromEvents({
   presence: Readonly<Record<string, RelayAgent["status"]>>;
 }): RelayAgent[] {
   const latest = latestAgentEvents(events);
-  const configured = new Map(
-    configuredAgents.map((agent) => [agent.pubkey.toLowerCase(), agent.name] as const),
-  );
+  const configured = new Map(configuredAgents.map((agent) => [agent.pubkey.toLowerCase(), agent]));
   const botPubkeys = channels.flatMap((channel) =>
     channel.members
       .filter((member) => member.role === "bot")
@@ -86,7 +85,7 @@ export function relayAgentsFromEvents({
         pubkey,
         name:
           (typeof nameValue === "string" && nameValue.trim()) ||
-          configured.get(pubkey) ||
+          configured.get(pubkey)?.name ||
           profile?.name ||
           truncatePubkey(pubkey),
         agentType:
@@ -101,6 +100,7 @@ export function relayAgentsFromEvents({
         respondToAllowlist: stringArray(content.respond_to_allowlist).map((value) =>
           value.toLowerCase(),
         ),
+        startable: configured.get(pubkey)?.startable === true,
       };
     })
     .sort(

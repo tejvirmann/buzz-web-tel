@@ -1,5 +1,4 @@
 import {
-  Activity,
   Bot,
   GitBranch,
   Hash,
@@ -10,7 +9,6 @@ import {
   Plus,
   Search,
   Settings,
-  Workflow,
   X,
 } from "lucide-react";
 import buzzAppIcon from "@/assets/app-icon@3x.png";
@@ -19,6 +17,7 @@ import type { BuzzChannel, UserProfile } from "@/features/chat/lib/chat-types";
 import { Avatar } from "@/features/chat/ui/Avatar";
 import { LeftPanelResizeHandle } from "@/features/chat/ui/LeftPanelSizing";
 import type { WorkspaceTool } from "@/features/chat/ui/WorkspaceToolPanel";
+import type { PreviewFeatureState } from "@/shared/features/preview-features";
 import { t } from "@/shared/i18n";
 
 function ConnectionDot({ state }: { state: string }) {
@@ -31,12 +30,24 @@ function ConnectionDot({ state }: { state: string }) {
   return <span className={`h-2 w-2 rounded-full ${color}`} aria-label={state} role="img" />;
 }
 
-function navRow(active: boolean): string {
+function navRow(active: boolean, unread = false): string {
   return `flex h-9 w-full items-center gap-3 rounded-md px-3 text-left text-sm transition-colors ${
     active
       ? "bg-foreground/10 font-semibold text-foreground"
-      : "text-foreground/85 hover:bg-foreground/5"
+      : unread
+        ? "font-semibold text-foreground hover:bg-foreground/5"
+        : "text-foreground/85 hover:bg-foreground/5"
   }`;
+}
+
+function ChannelUnreadDot({ channelId }: { channelId: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="h-2 w-2 shrink-0 rounded-full bg-primary"
+      data-testid={`channel-unread-${channelId}`}
+    />
+  );
 }
 
 export function AppNavigation({
@@ -53,6 +64,8 @@ export function AppNavigation({
   canManageMembers,
   activeTool,
   inboxUnreadCount,
+  channelUnreadCounts,
+  previewFeatures,
   maximumWidth,
   panelWidth,
   onCloseMobile,
@@ -79,6 +92,8 @@ export function AppNavigation({
   canManageMembers: boolean;
   activeTool: WorkspaceTool | null;
   inboxUnreadCount: number;
+  channelUnreadCounts: Readonly<Record<string, number>>;
+  previewFeatures: PreviewFeatureState;
   maximumWidth: number;
   panelWidth: number;
   onCloseMobile: () => void;
@@ -183,20 +198,18 @@ export function AppNavigation({
                 </span>
               ) : null}
             </button>
-            <button className={navRow(false)} disabled type="button">
-              <Activity className="h-[17px] w-[17px] shrink-0" />
-              <span>{t("nav.pulse")}</span>
-            </button>
-            <button
-              aria-label={t("nav.projects")}
-              aria-pressed={activeTool === "repos"}
-              className={navRow(activeTool === "repos")}
-              type="button"
-              onClick={() => onToggleTool("repos")}
-            >
-              <GitBranch className="h-[17px] w-[17px] shrink-0" />
-              <span>{t("nav.projects")}</span>
-            </button>
+            {previewFeatures.projects ? (
+              <button
+                aria-label={t("nav.projects")}
+                aria-pressed={activeTool === "repos"}
+                className={navRow(activeTool === "repos")}
+                type="button"
+                onClick={() => onToggleTool("repos")}
+              >
+                <GitBranch className="h-[17px] w-[17px] shrink-0" />
+                <span>{t("nav.projects")}</span>
+              </button>
+            ) : null}
             <button
               aria-label={t("agents.title")}
               aria-pressed={activeTool === "agents"}
@@ -206,10 +219,6 @@ export function AppNavigation({
             >
               <Bot className="h-[17px] w-[17px] shrink-0" />
               <span>{t("agents.title")}</span>
-            </button>
-            <button className={navRow(false)} disabled type="button">
-              <Workflow className="h-[17px] w-[17px] shrink-0" />
-              <span>{t("nav.workflows")}</span>
             </button>
           </nav>
 
@@ -231,11 +240,17 @@ export function AppNavigation({
             </div>
             {streamChannels.map((channel) => {
               const selected = activeTool === null && selectedChannelId === channel.id;
+              const unreadCount = selected ? 0 : (channelUnreadCounts[channel.id] ?? 0);
               return (
                 <button
                   key={channel.id}
                   aria-pressed={selected}
-                  className={navRow(selected)}
+                  className={navRow(selected, unreadCount > 0)}
+                  title={
+                    unreadCount > 0
+                      ? t("nav.unreadIn", { count: unreadCount, name: channel.name })
+                      : undefined
+                  }
                   type="button"
                   onClick={() => select(channel.id)}
                 >
@@ -244,32 +259,42 @@ export function AppNavigation({
                   ) : (
                     <Hash className="h-4 w-4 shrink-0 text-muted-foreground" />
                   )}
-                  <span className="truncate">{channel.name}</span>
+                  <span className="min-w-0 flex-1 truncate">{channel.name}</span>
+                  {unreadCount > 0 ? <ChannelUnreadDot channelId={channel.id} /> : null}
                 </button>
               );
             })}
           </section>
 
-          <section className="mt-6">
-            <div className="mb-1 flex h-7 items-center px-3 text-[11px] font-medium text-muted-foreground">
-              {t("nav.forums")}
-            </div>
-            {forumChannels.map((channel) => {
-              const selected = activeTool === null && selectedChannelId === channel.id;
-              return (
-                <button
-                  key={channel.id}
-                  aria-pressed={selected}
-                  className={navRow(selected)}
-                  type="button"
-                  onClick={() => select(channel.id)}
-                >
-                  <MessagesSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="truncate">{channel.name}</span>
-                </button>
-              );
-            })}
-          </section>
+          {previewFeatures.forum ? (
+            <section className="mt-6">
+              <div className="mb-1 flex h-7 items-center px-3 text-[11px] font-medium text-muted-foreground">
+                {t("nav.forums")}
+              </div>
+              {forumChannels.map((channel) => {
+                const selected = activeTool === null && selectedChannelId === channel.id;
+                const unreadCount = selected ? 0 : (channelUnreadCounts[channel.id] ?? 0);
+                return (
+                  <button
+                    key={channel.id}
+                    aria-pressed={selected}
+                    className={navRow(selected, unreadCount > 0)}
+                    title={
+                      unreadCount > 0
+                        ? t("nav.unreadIn", { count: unreadCount, name: channel.name })
+                        : undefined
+                    }
+                    type="button"
+                    onClick={() => select(channel.id)}
+                  >
+                    <MessagesSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate">{channel.name}</span>
+                    {unreadCount > 0 ? <ChannelUnreadDot channelId={channel.id} /> : null}
+                  </button>
+                );
+              })}
+            </section>
+          ) : null}
 
           <section className="mt-6">
             <div className="mb-1 flex h-7 items-center justify-between px-3">
@@ -291,12 +316,16 @@ export function AppNavigation({
               const other = channel.participantPubkeys.find((value) => value !== currentPubkey);
               const dmProfile = other ? profiles[other] : null;
               const selected = activeTool === null && selectedChannelId === channel.id;
+              const unreadCount = selected ? 0 : (channelUnreadCounts[channel.id] ?? 0);
               return (
                 <button
                   key={channel.id}
                   aria-label={name}
                   aria-pressed={selected}
-                  className={navRow(selected)}
+                  className={navRow(selected, unreadCount > 0)}
+                  title={
+                    unreadCount > 0 ? t("nav.unreadIn", { count: unreadCount, name }) : undefined
+                  }
                   type="button"
                   onClick={() => select(channel.id)}
                 >
@@ -311,7 +340,8 @@ export function AppNavigation({
                   ) : (
                     <MessageCircle className="h-4 w-4 shrink-0 text-muted-foreground" />
                   )}
-                  <span className="truncate">{name}</span>
+                  <span className="min-w-0 flex-1 truncate">{name}</span>
+                  {unreadCount > 0 ? <ChannelUnreadDot channelId={channel.id} /> : null}
                 </button>
               );
             })}
@@ -360,15 +390,17 @@ export function AppNavigation({
         >
           <MessagesSquare className="h-5 w-5" />
         </button>
-        <button
-          aria-label={t("nav.projects")}
-          aria-pressed={activeTool === "repos"}
-          className="buzz-icon-button"
-          type="button"
-          onClick={() => onToggleTool("repos")}
-        >
-          <GitBranch className="h-5 w-5" />
-        </button>
+        {previewFeatures.projects ? (
+          <button
+            aria-label={t("nav.projects")}
+            aria-pressed={activeTool === "repos"}
+            className="buzz-icon-button"
+            type="button"
+            onClick={() => onToggleTool("repos")}
+          >
+            <GitBranch className="h-5 w-5" />
+          </button>
+        ) : null}
         <button
           aria-label={t("agents.title")}
           aria-pressed={activeTool === "agents"}

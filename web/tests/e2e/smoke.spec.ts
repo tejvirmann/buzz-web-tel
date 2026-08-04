@@ -10,20 +10,31 @@ import {
 const DEMO_CONFIG = {
   communityName: "Buzz Community",
   relayUrl: "wss://relay.example.com",
+  agentControlUrl: "https://buzz.example.com/app/api/agent-control",
   demoMode: true,
   agents: [
     {
       pubkey: "a".repeat(64),
       name: "Codex(remote)",
+      startable: true,
     },
     {
       pubkey: "b".repeat(64),
       name: "Grok(remote)",
+      startable: true,
     },
   ],
 };
 
-async function enableDemo(page: Page) {
+async function enableDemo(page: Page, { previewFeatures = true } = {}) {
+  if (previewFeatures) {
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "buzz-feature-overrides-v1",
+        JSON.stringify({ projects: true, forum: true }),
+      );
+    });
+  }
   await page.route("**/config.json", async (route) => {
     await route.fulfill({
       status: 200,
@@ -90,6 +101,23 @@ test("desktop navigation opens a remote-agent DM", async ({ page }) => {
   await dmButton.click();
   await expect(page.getByRole("heading", { name: "Codex(remote)" })).toBeVisible();
   await expect(page.getByLabel("Send a message to Codex(remote)")).toBeVisible();
+});
+
+test("preview features stay hidden until enabled in Experiments", async ({ page }) => {
+  await enableDemo(page, { previewFeatures: false });
+  await page.goto("/");
+
+  await expect(page.getByRole("button", { name: "Projects" })).toHaveCount(0);
+  await expect(page.getByText("Forums", { exact: true })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Settings" }).last().click();
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  await expect(settings.getByText("Experiments", { exact: true })).toBeVisible();
+  await settings.getByRole("checkbox", { name: /^Projects/ }).check();
+  await expect(page.getByRole("button", { name: "Projects" }).first()).toBeVisible();
+  await settings.getByRole("checkbox", { name: /^Forum Channels/ }).check();
+  await settings.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByText("Forums", { exact: true })).toBeVisible();
 });
 
 test("mobile layout exposes the channel drawer", async ({ page }) => {
@@ -445,6 +473,30 @@ test("remote agents can be inspected, assigned to channels, and messaged", async
   await expect(page.getByRole("heading", { name: "Codex(remote)" })).toBeVisible();
 });
 
+test("an offline agent play button starts its service without opening a DM", async ({ page }) => {
+  await enableDemo(page);
+  await page.route("https://buzz.example.com/app/api/agent-control/start", async (route) => {
+    await route.fulfill({
+      status: 202,
+      contentType: "application/json",
+      body: JSON.stringify({ status: "accepted", action: "started" }),
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Agents" }).first().click();
+
+  const requestPromise = page.waitForRequest(
+    "https://buzz.example.com/app/api/agent-control/start",
+  );
+  await page.getByRole("button", { name: "Start Grok(remote)" }).click();
+  const request = await requestPromise;
+  expect(request.method()).toBe("POST");
+  expect(request.postDataJSON()).toEqual({ pubkey: "b".repeat(64) });
+  expect(request.headers().authorization).toMatch(/^Nostr /);
+  await expect(page.getByTestId("workspace-tool-agents")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Grok(remote)" })).toHaveCount(0);
+});
+
 test("Inbox filters unread activity and opens the source thread", async ({ page }) => {
   await enableDemo(page);
   await page.goto("/");
@@ -455,6 +507,10 @@ test("Inbox filters unread activity and opens the source thread", async ({ page 
   await expect(inboxPanel.getByText("4 unread")).toBeVisible();
   await expect(page.getByRole("heading", { name: "general", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "general", exact: true })).toBeVisible();
+  const generalUnread = page.getByTestId(
+    `channel-unread-${"11111111-2222-4333-8444-555555555555"}`,
+  );
+  await expect(generalUnread).toBeVisible();
   await page.screenshot({
     path: "test-results/visual/buzz-web-inbox.png",
     animations: "disabled",
@@ -468,6 +524,7 @@ test("Inbox filters unread activity and opens the source thread", async ({ page 
   await expect(inboxPanel.getByText("3 unread")).toBeVisible();
   await inboxPanel.getByRole("button", { name: "Open conversation" }).click();
   await expect(page.getByRole("complementary", { name: "Thread" })).toBeVisible();
+  await expect(generalUnread).toHaveCount(0);
 
   await page.getByRole("button", { name: "Inbox" }).first().click();
   await page.getByRole("button", { name: "Mark all as read" }).click();

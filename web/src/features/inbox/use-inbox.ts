@@ -203,6 +203,16 @@ export function useInbox({
   const markAllRead = useCallback(() => {
     setReadIds((current) => new Set([...current, ...items.map((item) => item.id)]));
   }, [items]);
+  const markChannelRead = useCallback(
+    (channelId: string) => {
+      const channelItemIds = items
+        .filter((item) => item.channelId === channelId)
+        .map((item) => item.id);
+      if (!channelItemIds.length) return;
+      setReadIds((current) => new Set([...current, ...channelItemIds]));
+    },
+    [items],
+  );
   const respondToApproval = useCallback(
     async (event: NostrEvent, approved: boolean) => {
       setApprovalPending(event.id);
@@ -243,6 +253,7 @@ export function useInbox({
     markRead,
     markUnread,
     markAllRead,
+    markChannelRead,
     respondToApproval,
   };
 }
