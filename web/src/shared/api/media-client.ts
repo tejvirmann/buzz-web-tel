@@ -1,4 +1,5 @@
 import type { AttachmentDescriptor } from "@/features/chat/lib/chat-types";
+import { prepareAttachmentUpload } from "@/shared/api/media-sanitizer";
 import { relayHttpOrigin } from "@/shared/config/runtime-config";
 import { t } from "@/shared/i18n";
 import { signNostrEvent } from "@/shared/lib/nostr-signer";
@@ -42,7 +43,7 @@ export async function uploadAttachment(
   relayUrl: string,
 ): Promise<AttachmentDescriptor> {
   const origin = relayHttpOrigin(relayUrl);
-  const bytes = await file.arrayBuffer();
+  const { bytes, mimeType } = await prepareAttachmentUpload(file);
   const sha256 = toHex(await crypto.subtle.digest("SHA-256", bytes));
   const server = new URL(origin).host;
   const authorization = await authorizationHeader("upload", server, sha256);
@@ -50,7 +51,7 @@ export async function uploadAttachment(
     method: "PUT",
     headers: {
       Authorization: authorization,
-      "Content-Type": file.type || "application/octet-stream",
+      "Content-Type": mimeType,
       "X-SHA-256": sha256,
     },
     body: bytes,

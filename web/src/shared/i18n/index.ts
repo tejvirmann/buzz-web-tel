@@ -527,6 +527,10 @@ const messages = {
   "workspace.toolPanel": { en: "{name} panel", "zh-CN": "{name}面板" },
   "workspace.typing": { en: "{names} typing…", "zh-CN": "{names} 正在输入…" },
   "error.attachmentUpload": { en: "Attachment upload failed.", "zh-CN": "附件上传失败。" },
+  "error.attachmentImagePrepare": {
+    en: "We couldn't prepare this image for upload.",
+    "zh-CN": "无法处理此图片以上传。",
+  },
   "error.backupCreate": {
     en: "Failed to create the encrypted identity backup.",
     "zh-CN": "创建加密身份备份失败。",
