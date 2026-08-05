@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { tagValue, threadReference } from "@/features/chat/lib/chat-model";
 import type { BuzzChannel } from "@/features/chat/lib/chat-types";
 import {
@@ -12,10 +12,31 @@ import type { BuzzRelayClient } from "@/shared/api/relay-client";
 import type { ConfiguredAgent } from "@/shared/config/runtime-config";
 import { t } from "@/shared/i18n";
 
-function mergeEvents(current: NostrEvent[], incoming: NostrEvent[]): NostrEvent[] {
+type InboxEventState = {
+  events: NostrEvent[];
+  scopeKey: string;
+};
+
+function mergeEvents(
+  current: readonly NostrEvent[],
+  incoming: readonly NostrEvent[],
+): NostrEvent[] {
   const byId = new Map(current.map((event) => [event.id, event]));
   for (const event of incoming) byId.set(event.id, event);
   return [...byId.values()];
+}
+
+export function mergeInboxEventState(
+  current: InboxEventState,
+  sourceScopeKey: string,
+  activeScopeKey: string,
+  incoming: readonly NostrEvent[],
+): InboxEventState {
+  if (sourceScopeKey !== activeScopeKey) return current;
+  return {
+    scopeKey: sourceScopeKey,
+    events: mergeEvents(current.scopeKey === sourceScopeKey ? current.events : [], incoming),
+  };
 }
 
 function legacyReadStateKey(relayUrl: string, pubkey: string): string {
@@ -138,9 +159,14 @@ export function useInbox({
     () => forcedUnreadStateKey(relayUrl, currentPubkey),
     [currentPubkey, relayUrl],
   );
-  const [events, setEvents] = useState<NostrEvent[]>(() =>
-    demo ? demoInboxEvents(channels, currentPubkey, configuredAgents) : [],
-  );
+  const eventScopeKey = `${relayUrl}:${currentPubkey.toLowerCase()}`;
+  const activeEventScopeRef = useRef(eventScopeKey);
+  activeEventScopeRef.current = eventScopeKey;
+  const [eventState, setEventState] = useState<InboxEventState>(() => ({
+    scopeKey: eventScopeKey,
+    events: demo ? demoInboxEvents(channels, currentPubkey, configuredAgents) : [],
+  }));
+  const events = eventState.scopeKey === eventScopeKey ? eventState.events : [];
   const [legacyReadIds] = useState<Set<string>>(() => loadReadIds(legacyStorageKey));
   const [forcedUnreadIds, setForcedUnreadIds] = useState<Set<string>>(() =>
     loadReadIds(forcedStorageKey),
@@ -160,9 +186,12 @@ export function useInbox({
 
   useEffect(() => {
     if (demo && channelIdsKey) {
-      setEvents(demoInboxEvents(channels, currentPubkey, configuredAgents));
+      setEventState({
+        scopeKey: eventScopeKey,
+        events: demoInboxEvents(channels, currentPubkey, configuredAgents),
+      });
     }
-  }, [channelIdsKey, channels, configuredAgents, currentPubkey, demo]);
+  }, [channelIdsKey, channels, configuredAgents, currentPubkey, demo, eventScopeKey]);
 
   useEffect(() => {
     try {
@@ -192,6 +221,7 @@ export function useInbox({
 
   const refresh = useCallback(async () => {
     if (!client || demo) return;
+    const refreshScopeKey = eventScopeKey;
     setLoading(true);
     try {
       const channelIds = channels.map((channel) => channel.id);
@@ -202,15 +232,19 @@ export function useInbox({
           : Promise.resolve([]),
       ]);
       const nextEvents = mergeEvents([], results.flat());
-      setEvents(nextEvents);
+      setEventState((current) =>
+        mergeInboxEventState(current, refreshScopeKey, activeEventScopeRef.current, nextEvents),
+      );
       await ensureProfiles(nextEvents.map((event) => event.pubkey));
-      setError(null);
+      if (activeEventScopeRef.current === refreshScopeKey) setError(null);
     } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : t("error.inboxLoad"));
+      if (activeEventScopeRef.current === refreshScopeKey) {
+        setError(refreshError instanceof Error ? refreshError.message : t("error.inboxLoad"));
+      }
     } finally {
-      setLoading(false);
+      if (activeEventScopeRef.current === refreshScopeKey) setLoading(false);
     }
-  }, [channels, client, currentPubkey, demo, ensureProfiles]);
+  }, [channels, client, currentPubkey, demo, ensureProfiles, eventScopeKey]);
 
   useEffect(() => {
     if (!client || demo) return;
@@ -219,7 +253,9 @@ export function useInbox({
     const since = Math.floor(Date.now() / 1000) - 3;
     const channelIds = channelIdsKey ? channelIdsKey.split(",") : [];
     const receive = (event: NostrEvent) => {
-      setEvents((current) => mergeEvents(current, [event]));
+      setEventState((current) =>
+        mergeInboxEventState(current, eventScopeKey, activeEventScopeRef.current, [event]),
+      );
       void ensureProfiles([event.pubkey]);
     };
     void refresh();
@@ -248,7 +284,7 @@ export function useInbox({
       cancelled = true;
       for (const unsubscribe of unsubscribers) unsubscribe();
     };
-  }, [channelIdsKey, client, currentPubkey, demo, ensureProfiles, refresh]);
+  }, [channelIdsKey, client, currentPubkey, demo, ensureProfiles, eventScopeKey, refresh]);
 
   const readIds = useMemo(() => {
     const result = new Set<string>();
@@ -381,7 +417,11 @@ export function useInbox({
           });
         }
         markRead(event.id);
-        setEvents((current) => current.filter((item) => item.id !== event.id));
+        setEventState((current) =>
+          current.scopeKey === eventScopeKey
+            ? { ...current, events: current.events.filter((item) => item.id !== event.id) }
+            : current,
+        );
         setError(null);
       } catch (approvalError) {
         setError(
@@ -391,7 +431,7 @@ export function useInbox({
         setApprovalPending(null);
       }
     },
-    [client, demo, markRead],
+    [client, demo, eventScopeKey, markRead],
   );
 
   return {

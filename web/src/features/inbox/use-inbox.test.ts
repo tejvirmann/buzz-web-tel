@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { eventReadFrontier, topLevelChannelEvents } from "@/features/inbox/use-inbox";
+import {
+  eventReadFrontier,
+  mergeInboxEventState,
+  topLevelChannelEvents,
+} from "@/features/inbox/use-inbox";
 import type { NostrEvent } from "@/shared/api/nostr-types";
 
 function event(id: string, createdAt: number, tags: string[][]): NostrEvent {
@@ -35,6 +39,32 @@ describe("Inbox channel read frontier", () => {
     ).toBe(25);
     expect(eventReadFrontier(reply, { general: 10, [`msg:${reply.id}`]: 30 }, "a".repeat(64))).toBe(
       30,
+    );
+  });
+});
+
+describe("Inbox event refresh", () => {
+  it("keeps a live reply when an older history request settles afterward", () => {
+    const root = event("a", 10, []);
+    const reply = event("b", 20, [["e", root.id, "", "reply"]]);
+    const scopeKey = "wss://relay.example:current-user";
+    const afterLiveReply = mergeInboxEventState({ scopeKey, events: [] }, scopeKey, scopeKey, [
+      reply,
+    ]);
+    const afterHistory = mergeInboxEventState(afterLiveReply, scopeKey, scopeKey, [root]);
+
+    expect(new Set(afterHistory.events.map((item) => item.id))).toEqual(
+      new Set([root.id, reply.id]),
+    );
+  });
+
+  it("ignores an asynchronous refresh from a previous Relay or identity", () => {
+    const currentScope = "wss://relay.example:current-user";
+    const previousScope = "wss://old.example:previous-user";
+    const current = { scopeKey: currentScope, events: [event("c", 30, [])] };
+
+    expect(mergeInboxEventState(current, previousScope, currentScope, [event("d", 40, [])])).toBe(
+      current,
     );
   });
 });
