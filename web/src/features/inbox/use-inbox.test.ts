@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   eventReadFrontier,
+  inboxLiveFilters,
   mergeInboxEventState,
   topLevelChannelEvents,
 } from "@/features/inbox/use-inbox";
@@ -66,5 +67,16 @@ describe("Inbox event refresh", () => {
     expect(mergeInboxEventState(current, previousScope, currentScope, [event("d", 40, [])])).toBe(
       current,
     );
+  });
+});
+
+describe("Inbox live subscriptions", () => {
+  it("uses one channel-scoped subscription per channel for Relay fan-out", () => {
+    const filters = inboxLiveFilters("f".repeat(64), ["channel-a", "channel-b"], 42);
+
+    expect(filters.filter((filter) => filter["#h"]).map((filter) => filter["#h"])).toEqual([
+      ["channel-a"],
+      ["channel-b"],
+    ]);
   });
 });

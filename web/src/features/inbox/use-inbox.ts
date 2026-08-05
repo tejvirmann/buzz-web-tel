@@ -7,7 +7,7 @@ import {
   threadNotificationRootIds,
   threadRootIds,
 } from "@/features/inbox/lib/inbox-model";
-import type { NostrEvent } from "@/shared/api/nostr-types";
+import type { NostrEvent, NostrFilter } from "@/shared/api/nostr-types";
 import type { BuzzRelayClient } from "@/shared/api/relay-client";
 import type { ConfiguredAgent } from "@/shared/config/runtime-config";
 import { t } from "@/shared/i18n";
@@ -37,6 +37,22 @@ export function mergeInboxEventState(
     scopeKey: sourceScopeKey,
     events: mergeEvents(current.scopeKey === sourceScopeKey ? current.events : [], incoming),
   };
+}
+
+export function inboxLiveFilters(
+  currentPubkey: string,
+  channelIds: readonly string[],
+  since: number,
+): NostrFilter[] {
+  return [
+    { kinds: INBOX_EVENT_KINDS, "#p": [currentPubkey], since, limit: 0 },
+    ...channelIds.map((channelId) => ({
+      kinds: INBOX_EVENT_KINDS,
+      "#h": [channelId],
+      since,
+      limit: 0,
+    })),
+  ];
 }
 
 function legacyReadStateKey(relayUrl: string, pubkey: string): string {
@@ -259,12 +275,7 @@ export function useInbox({
       void ensureProfiles([event.pubkey]);
     };
     void refresh();
-    const filters = [
-      { kinds: INBOX_EVENT_KINDS, "#p": [currentPubkey], since, limit: 0 },
-      ...(channelIds.length
-        ? [{ kinds: INBOX_EVENT_KINDS, "#h": channelIds, since, limit: 0 }]
-        : []),
-    ];
+    const filters = inboxLiveFilters(currentPubkey, channelIds, since);
     for (const filter of filters) {
       void client
         .subscribe(filter, receive)
