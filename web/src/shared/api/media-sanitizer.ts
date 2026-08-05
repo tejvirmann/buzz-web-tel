@@ -8,6 +8,25 @@ interface PreparedUpload {
 }
 
 const MAX_IMAGE_PIXELS = 25_000_000;
+const UNSUPPORTED_MEDIA_EXTENSIONS = new Set([
+  "avif",
+  "bmp",
+  "heic",
+  "heif",
+  "m4a",
+  "m4v",
+  "mov",
+  "mp3",
+  "mp4",
+  "mpeg",
+  "mpg",
+  "ogg",
+  "ogv",
+  "tif",
+  "tiff",
+  "wav",
+  "webm",
+]);
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 const PNG_ALLOWED_ANCILLARY = new Set([
   "cHRM",
@@ -498,7 +517,20 @@ export async function prepareAttachmentUpload(file: File): Promise<PreparedUploa
   const original = await file.arrayBuffer();
   const bytes = new Uint8Array(original);
   const imageMime = detectImageMime(bytes);
-  if (!imageMime) return { bytes: original, mimeType: file.type || "application/octet-stream" };
+  if (!imageMime) {
+    const declaredType = file.type.trim().toLocaleLowerCase();
+    const filenameParts = file.name.split(".");
+    const extension = filenameParts[filenameParts.length - 1]?.toLocaleLowerCase() ?? "";
+    if (
+      declaredType.startsWith("image/") ||
+      declaredType.startsWith("audio/") ||
+      declaredType.startsWith("video/") ||
+      UNSUPPORTED_MEDIA_EXTENSIONS.has(extension)
+    ) {
+      throw new Error(t("error.attachmentMediaUnsupported"));
+    }
+    return { bytes: original, mimeType: declaredType || "application/octet-stream" };
+  }
   try {
     if (imageMime === "image/gif") {
       return { bytes: toArrayBuffer(scrubGif(bytes)), mimeType: imageMime };

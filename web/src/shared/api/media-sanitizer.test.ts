@@ -24,6 +24,20 @@ function concat(parts: Uint8Array[]): Uint8Array {
 }
 
 describe("prepareAttachmentUpload", () => {
+  it("rejects media formats that cannot be stripped of metadata", async () => {
+    await expect(
+      prepareAttachmentUpload(
+        new File([new Uint8Array([0, 0, 0, 20])], "camera.heic", { type: "image/heic" }),
+      ),
+    ).rejects.toThrow("This media format isn't supported for upload.");
+
+    await expect(
+      prepareAttachmentUpload(
+        new File([new Uint8Array([0, 0, 0, 20])], "clip.mov", { type: "video/quicktime" }),
+      ),
+    ).rejects.toThrow("This media format isn't supported for upload.");
+  });
+
   it("removes GIF comments without flattening animation blocks", async () => {
     const header = new Uint8Array([
       ...ascii("GIF89a"),
