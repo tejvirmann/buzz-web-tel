@@ -496,7 +496,7 @@ export function buildMessageTags(
     if (descriptor.blurhash) tag.push(`blurhash ${descriptor.blurhash}`);
     if (descriptor.thumb) tag.push(`thumb ${descriptor.thumb}`);
     if (descriptor.duration !== undefined) tag.push(`duration ${descriptor.duration}`);
-    if (descriptor.filename) tag.push(`name ${descriptor.filename}`);
+    if (descriptor.filename) tag.push(`filename ${descriptor.filename}`);
     tags.push(tag);
   }
   return tags;

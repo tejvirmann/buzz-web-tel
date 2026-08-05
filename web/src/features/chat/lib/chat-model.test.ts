@@ -280,7 +280,10 @@ describe("Buzz outgoing messages", () => {
     expect(tags).toContainEqual(["p", AGENT]);
     expect(tags).toContainEqual(["e", "55".repeat(32), "", "root"]);
     expect(tags).toContainEqual(["e", "44".repeat(32), "", "reply"]);
-    expect(tags.find((tag) => tag[0] === "imeta")).toContain("m image/png");
+    const imeta = tags.find((tag) => tag[0] === "imeta");
+    expect(imeta).toContain("m image/png");
+    expect(imeta).toContain("filename shot.png");
+    expect(imeta).not.toContain("name shot.png");
   });
 
   it("appends uploaded files as markdown without duplicating empty body", () => {
