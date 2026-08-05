@@ -78,18 +78,10 @@ export class BuzzRelayClient {
     this.connectPromise = new Promise<void>((resolve, reject) => {
       this.resolveConnect = resolve;
       this.rejectConnect = reject;
-      const socket = new WebSocket(this.relayUrl);
-      this.socket = socket;
       this.authTimeout = window.setTimeout(() => {
         this.failConnection(new Error(t("error.relayAuthTimeout")));
       }, OPERATION_TIMEOUT_MS);
-      socket.addEventListener("message", (message) => {
-        void this.handleMessage(message.data);
-      });
-      socket.addEventListener("error", () => {
-        if (this.state !== "connected") this.failConnection(new Error(t("error.relayConnect")));
-      });
-      socket.addEventListener("close", () => this.handleClose());
+      this.openSocket();
     }).finally(() => {
       this.connectPromise = null;
     });
@@ -103,10 +95,15 @@ export class BuzzRelayClient {
     if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
     this.clearAuthTimeout();
-    this.socket?.close(1000, "sign out");
-    this.socket = null;
-    this.setState("idle");
     const error = new Error(t("error.relaySessionClosed"));
+    this.rejectConnect?.(error);
+    this.resolveConnect = null;
+    this.rejectConnect = null;
+    this.authEventId = null;
+    const socket = this.socket;
+    this.socket = null;
+    socket?.close(1000, "sign out");
+    this.setState("idle");
     for (const [id, subscription] of this.subscriptions) {
       if (!subscription.persistent) {
         subscription.reject?.(error);
@@ -118,6 +115,27 @@ export class BuzzRelayClient {
       pending.reject(error);
     }
     this.pendingPublishes.clear();
+  }
+
+  private openSocket(): void {
+    if (this.manuallyClosed || this.terminal) return;
+    let socket: WebSocket;
+    try {
+      socket = new WebSocket(this.relayUrl);
+    } catch {
+      this.failConnection(new Error(t("error.relayConnect")));
+      return;
+    }
+    this.socket = socket;
+    socket.addEventListener("message", (message) => {
+      void this.handleMessage(socket, message.data);
+    });
+    socket.addEventListener("error", () => {
+      if (this.socket !== socket || this.state === "connected") return;
+      socket.close();
+      this.handleClose(socket);
+    });
+    socket.addEventListener("close", () => this.handleClose(socket));
   }
 
   async query(filter: NostrFilter): Promise<NostrEvent[]> {
@@ -197,9 +215,9 @@ export class BuzzRelayClient {
     this.socket.send(JSON.stringify(payload));
   }
 
-  private async handleMessage(raw: unknown): Promise<void> {
+  private async handleMessage(socket: WebSocket, raw: unknown): Promise<void> {
     const text = typeof raw === "string" ? raw : raw instanceof Blob ? await raw.text() : "";
-    if (!text) return;
+    if (!text || this.socket !== socket) return;
     let data: unknown;
     try {
       data = JSON.parse(text);
@@ -209,15 +227,24 @@ export class BuzzRelayClient {
     if (!Array.isArray(data) || typeof data[0] !== "string") return;
     const type = data[0];
     if (type === "AUTH" && typeof data[1] === "string") {
-      const event = await signNostrEvent(makeAuthEvent(this.relayUrl, data[1]), {
-        requireActive: true,
-      });
-      this.authEventId = event.id;
-      this.send(["AUTH", event]);
+      try {
+        const event = await signNostrEvent(makeAuthEvent(this.relayUrl, data[1]), {
+          requireActive: true,
+        });
+        if (this.socket !== socket || socket.readyState !== WebSocket.OPEN) return;
+        this.authEventId = event.id;
+        socket.send(JSON.stringify(["AUTH", event]));
+      } catch (authError) {
+        if (this.socket !== socket) return;
+        this.failConnection(
+          authError instanceof Error ? authError : new Error(t("error.relayAuthFailed")),
+          socket,
+        );
+      }
       return;
     }
     if (type === "OK" && typeof data[1] === "string" && typeof data[2] === "boolean") {
-      this.handleOk(data[1], data[2], typeof data[3] === "string" ? data[3] : "");
+      this.handleOk(socket, data[1], data[2], typeof data[3] === "string" ? data[3] : "");
       return;
     }
     if (type === "EVENT" && typeof data[1] === "string" && data[2]) {
@@ -247,12 +274,12 @@ export class BuzzRelayClient {
     }
   }
 
-  private handleOk(eventId: string, accepted: boolean, message: string): void {
+  private handleOk(socket: WebSocket, eventId: string, accepted: boolean, message: string): void {
     if (eventId === this.authEventId) {
       this.clearAuthTimeout();
       if (!accepted) {
         this.terminal = true;
-        this.failConnection(new Error(message || t("error.relayAuthFailed")));
+        this.failConnection(new Error(message || t("error.relayAuthFailed")), socket);
         return;
       }
       this.authEventId = null;
@@ -286,22 +313,25 @@ export class BuzzRelayClient {
     this.authTimeout = null;
   }
 
-  private failConnection(error: Error): void {
+  private failConnection(error: Error, socket: WebSocket | null = this.socket): void {
+    if (socket && this.socket !== socket) return;
     this.clearAuthTimeout();
+    if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
     this.rejectConnect?.(error);
     this.resolveConnect = null;
     this.rejectConnect = null;
-    this.socket?.close();
+    this.authEventId = null;
+    const activeSocket = this.socket;
     this.socket = null;
+    activeSocket?.close();
     this.setState("disconnected");
   }
 
-  private handleClose(): void {
-    this.clearAuthTimeout();
+  private handleClose(socket: WebSocket): void {
+    if (this.socket !== socket) return;
     this.socket = null;
-    if (this.state !== "connected") this.rejectConnect?.(new Error(t("error.relayClosed")));
-    this.resolveConnect = null;
-    this.rejectConnect = null;
+    this.authEventId = null;
     for (const [id, subscription] of this.subscriptions) {
       if (!subscription.persistent) {
         subscription.reject?.(new Error(t("error.relayQueryInterrupted")));
@@ -321,7 +351,8 @@ export class BuzzRelayClient {
     if (this.reconnectTimer !== null) return;
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectTimer = null;
-      void this.connect().catch(() => undefined);
+      if (this.connectPromise) this.openSocket();
+      else void this.connect().catch(() => undefined);
     }, this.reconnectDelay);
     this.reconnectDelay = Math.min(this.reconnectDelay * 2, RECONNECT_MAX_MS);
   }
