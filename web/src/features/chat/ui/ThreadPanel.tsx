@@ -8,9 +8,9 @@ import type {
 } from "@/features/chat/lib/chat-types";
 import { MessageComposer } from "@/features/chat/ui/MessageComposer";
 import { MessageRow } from "@/features/chat/ui/MessageList";
-import { RightPanelResizeHandle } from "@/features/chat/ui/RightPanelSizing";
 import { t } from "@/shared/i18n";
 import { truncatePubkey } from "@/shared/lib/pubkey";
+import { RightPanelResizeHandle } from "@/shared/ui/right-panel-sizing";
 
 export function ThreadPanel({
   root,

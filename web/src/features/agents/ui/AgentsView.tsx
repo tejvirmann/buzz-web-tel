@@ -14,9 +14,9 @@ import { useState } from "react";
 import type { RelayAgent } from "@/features/agents/lib/relay-agents";
 import type { BuzzChannel, UserProfile } from "@/features/chat/lib/chat-types";
 import { Avatar } from "@/features/chat/ui/Avatar";
-import { RightPanelResizeHandle, useRightPanelWidth } from "@/features/chat/ui/RightPanelSizing";
 import { t } from "@/shared/i18n";
 import { truncatePubkey } from "@/shared/lib/pubkey";
+import { RightPanelResizeHandle, useRightPanelWidth } from "@/shared/ui/right-panel-sizing";
 
 function statusLabel(status: RelayAgent["status"]): string {
   if (status === "online") return t("agents.online");

@@ -28,7 +28,6 @@ import { MessageComposer } from "@/features/chat/ui/MessageComposer";
 import { DeleteMessageDialog, EditMessageDialog } from "@/features/chat/ui/MessageDialogs";
 import { MessageList } from "@/features/chat/ui/MessageList";
 import { NewDmView } from "@/features/chat/ui/NewDmView";
-import { useRightPanelWidth } from "@/features/chat/ui/RightPanelSizing";
 import { SettingsView } from "@/features/chat/ui/SettingsDialog";
 import { ThreadPanel } from "@/features/chat/ui/ThreadPanel";
 import { type WorkspaceTool, WorkspaceToolPanel } from "@/features/chat/ui/WorkspaceToolPanel";
@@ -43,6 +42,7 @@ import { BuzzRelayClient } from "@/shared/api/relay-client";
 import { loadRuntimeConfig, type RuntimeConfig } from "@/shared/config/runtime-config";
 import { resolveRelayFeatures } from "@/shared/features/relay-features";
 import { t } from "@/shared/i18n";
+import { useRightPanelWidth } from "@/shared/ui/right-panel-sizing";
 
 type DialogName = "browse" | "search" | "invite" | null;
 
