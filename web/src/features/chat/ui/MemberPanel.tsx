@@ -82,6 +82,7 @@ export function MemberDialog({
   return (
     <>
       <DialogFrame
+        closeOnEscape={!removeTarget}
         title={t("member.count", { count: members.length })}
         width="max-w-2xl"
         onClose={onClose}

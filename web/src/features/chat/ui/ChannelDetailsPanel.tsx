@@ -11,8 +11,8 @@ import {
   X,
 } from "lucide-react";
 import type { BuzzChannel } from "@/features/chat/lib/chat-types";
-import { RightPanelResizeHandle } from "@/features/chat/ui/RightPanelSizing";
 import { t } from "@/shared/i18n";
+import { RightPanelResizeHandle } from "@/shared/ui/right-panel-sizing";
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -96,6 +96,7 @@ export function ChannelDetailsPanel({
         ) : null}
 
         <dl className="mt-5 border-y">
+          {channel.topic ? <DetailRow label={t("channel.topic")} value={channel.topic} /> : null}
           <DetailRow
             label={t("dialog.channelType")}
             value={

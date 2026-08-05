@@ -243,7 +243,10 @@ export function AppNavigation({
               <Inbox className="h-[17px] w-[17px] shrink-0" />
               <span className="min-w-0 flex-1 truncate">{t("inbox.title")}</span>
               {inboxUnreadCount ? (
-                <span className="flex min-h-5 min-w-5 items-center justify-center rounded-full bg-foreground/10 px-1.5 text-[10px] font-semibold">
+                <span
+                  className="flex min-h-5 min-w-5 items-center justify-center rounded-full bg-foreground/10 px-1.5 text-[10px] font-semibold"
+                  data-testid="inbox-unread-count"
+                >
                   {inboxUnreadCount > 99 ? "99+" : inboxUnreadCount}
                 </span>
               ) : null}

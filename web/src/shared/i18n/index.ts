@@ -84,6 +84,7 @@ const messages = {
   "channel.open": { en: "Open", "zh-CN": "打开" },
   "channel.search": { en: "Search channels", "zh-CN": "搜索频道" },
   "channel.star": { en: "Add to favorites", "zh-CN": "添加到收藏" },
+  "channel.topic": { en: "Topic", "zh-CN": "主题" },
   "channel.unarchive": { en: "Restore channel", "zh-CN": "恢复频道" },
   "channel.unmute": { en: "Unmute channel", "zh-CN": "取消静音" },
   "channel.unstar": { en: "Remove from favorites", "zh-CN": "取消收藏" },
@@ -300,11 +301,13 @@ const messages = {
   },
   "repos.branchCount": { en: "{count} branches", "zh-CN": "{count} 个分支" },
   "repos.branchCountOne": { en: "1 branch", "zh-CN": "1 个分支" },
+  "repos.breadcrumb": { en: "Repository breadcrumb", "zh-CN": "仓库面包屑导航" },
   "repos.clone": { en: "Clone", "zh-CN": "克隆地址" },
   "repos.close": { en: "Close Projects", "zh-CN": "关闭项目" },
   "repos.contributors": { en: "Contributors", "zh-CN": "贡献者" },
   "repos.code": { en: "Code", "zh-CN": "代码" },
   "repos.commits": { en: "Commits", "zh-CN": "提交" },
+  "repos.contents": { en: "Repository contents", "zh-CN": "仓库内容" },
   "repos.committed": {
     en: "{actor} committed {time}",
     "zh-CN": "{actor} 提交于{time}",
@@ -429,6 +432,7 @@ const messages = {
   "message.imageFailed": { en: "Image failed to load", "zh-CN": "图片加载失败" },
   "message.loading": { en: "Loading messages", "zh-CN": "加载消息" },
   "message.moreActions": { en: "More message actions", "zh-CN": "更多消息操作" },
+  "message.mobileActions": { en: "Open message actions", "zh-CN": "打开消息操作" },
   "message.mentionSuggestions": { en: "Mention suggestions", "zh-CN": "提及成员候选" },
   "message.newMessages": { en: "New messages", "zh-CN": "新消息" },
   "message.reaction": { en: "Reaction {emoji}", "zh-CN": "Reaction {emoji}" },
@@ -531,6 +535,10 @@ const messages = {
     en: "We couldn't prepare this image for upload.",
     "zh-CN": "无法处理此图片以上传。",
   },
+  "error.attachmentMediaUnsupported": {
+    en: "This media format isn't supported for upload.",
+    "zh-CN": "暂不支持上传此媒体格式。",
+  },
   "error.backupCreate": {
     en: "Failed to create the encrypted identity backup.",
     "zh-CN": "创建加密身份备份失败。",
@@ -585,6 +593,7 @@ const messages = {
   },
   "error.messageEdit": { en: "Failed to edit the message.", "zh-CN": "编辑消息失败。" },
   "error.messageLoad": { en: "Failed to load messages.", "zh-CN": "消息加载失败。" },
+  "error.messageSearch": { en: "Message search failed.", "zh-CN": "消息搜索失败。" },
   "error.messageSend": { en: "Failed to send message.", "zh-CN": "发送失败。" },
   "error.repoContentsLoad": {
     en: "Failed to load repository contents",

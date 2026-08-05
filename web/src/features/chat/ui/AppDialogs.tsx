@@ -8,20 +8,23 @@ export function DialogFrame({
   title,
   children,
   onClose,
+  closeOnEscape = true,
   width = "max-w-lg",
 }: {
   title: string;
   children: React.ReactNode;
   onClose: () => void;
+  closeOnEscape?: boolean;
   width?: string;
 }) {
   useEffect(() => {
+    if (!closeOnEscape) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [closeOnEscape, onClose]);
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]"
@@ -179,22 +182,42 @@ export function SearchDialog({
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<SearchHit[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
   useEffect(() => {
+    let active = true;
+    setError(null);
+    setLoading(false);
     if (term.trim().length < 2) {
       setResults([]);
-      return;
+      return () => {
+        active = false;
+      };
     }
+    const query = term.trim();
     const timer = window.setTimeout(() => {
       setLoading(true);
-      void onSearch(term, scopeChannel?.id)
-        .then(setResults)
-        .finally(() => setLoading(false));
+      void onSearch(query, scopeChannel?.id)
+        .then((nextResults) => {
+          if (active) setResults(nextResults);
+        })
+        .catch(() => {
+          if (active) {
+            setResults([]);
+            setError(t("error.messageSearch"));
+          }
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
     }, 250);
-    return () => window.clearTimeout(timer);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
   }, [onSearch, scopeChannel?.id, term]);
   const title = scopeChannel
     ? t("dialog.searchChannel", { channel: scopeChannel.name })
@@ -303,7 +326,12 @@ export function SearchDialog({
             </button>
           );
         })}
-        {term.trim().length >= 2 && !loading && !results.length ? (
+        {error ? (
+          <p className="px-3 py-10 text-center text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {term.trim().length >= 2 && !loading && !error && !results.length ? (
           <p className="px-3 py-10 text-center text-sm text-muted-foreground">
             {t("dialog.noMessages")}
           </p>

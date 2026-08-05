@@ -107,7 +107,8 @@ export function MessageRow({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [targetHighlighted, setTargetHighlighted] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const desktopMenuRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
   const rowRef = useRef<HTMLElement>(null);
   const ownMessage = message.event.pubkey.toLowerCase() === currentPubkey.toLowerCase();
   const mentions = useMemo(
@@ -124,7 +125,10 @@ export function MessageRow({
   useEffect(() => {
     if (!menuOpen) return;
     const closeOnOutsidePress = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+      const target = event.target as Node;
+      if (!desktopMenuRef.current?.contains(target) && !mobileMenuRef.current?.contains(target)) {
+        setMenuOpen(false);
+      }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setMenuOpen(false);
@@ -201,6 +205,105 @@ export function MessageRow({
               aria-label={t("message.sendFailed")}
             />
           ) : null}
+          <div ref={mobileMenuRef} className="relative ml-auto self-center sm:hidden">
+            <button
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              aria-label={t("message.mobileActions")}
+              className="buzz-icon-button h-7 w-7 flex-none"
+              title={t("message.mobileActions")}
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+            {menuOpen ? (
+              <div
+                aria-label={t("message.moreActions")}
+                className="absolute right-0 top-8 z-30 w-52 overflow-hidden rounded-lg border bg-popover shadow-xl"
+                role="menu"
+              >
+                {!message.deleted ? (
+                  <div className="grid grid-cols-4 border-b p-1">
+                    {QUICK_REACTIONS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        aria-label={t("message.reaction", { emoji })}
+                        className="flex h-9 items-center justify-center rounded text-base hover:bg-foreground/7"
+                        role="menuitem"
+                        title={t("message.reaction", { emoji })}
+                        type="button"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          void onReact(message, emoji);
+                        }}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="p-1">
+                  {showThreadAction ? (
+                    <button
+                      className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-xs hover:bg-foreground/6"
+                      role="menuitem"
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onOpenThread?.(message);
+                      }}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+                      {t("message.replyThread")}
+                    </button>
+                  ) : null}
+                  {!message.deleted && onReply ? (
+                    <button
+                      className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-xs hover:bg-foreground/6"
+                      role="menuitem"
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onReply(message);
+                      }}
+                    >
+                      <CornerUpLeft className="h-3.5 w-3.5 text-muted-foreground" />
+                      {t("message.replyMessage")}
+                    </button>
+                  ) : null}
+                  {ownMessage && onEdit && !message.deleted ? (
+                    <button
+                      className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-xs hover:bg-foreground/6"
+                      role="menuitem"
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onEdit(message);
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                      {t("message.edit")}
+                    </button>
+                  ) : null}
+                  {(ownMessage || canModerate) && onDelete && !message.deleted ? (
+                    <button
+                      className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-xs text-destructive hover:bg-destructive/8"
+                      role="menuitem"
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onDelete(message);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {t("message.delete")}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
         <div>
           {message.deleted ? (
@@ -261,7 +364,7 @@ export function MessageRow({
           </div>
         ) : null}
       </div>
-      <div className="absolute right-3 top-0.5 z-10 flex items-center rounded-md border bg-popover p-0.5 shadow-sm sm:hidden sm:group-hover:flex sm:group-focus-within:flex">
+      <div className="absolute right-3 top-0.5 z-10 hidden items-center rounded-md border bg-popover p-0.5 shadow-sm sm:group-hover:flex sm:group-focus-within:flex">
         {!message.deleted
           ? QUICK_REACTIONS.map((emoji) => (
               <button
@@ -300,7 +403,7 @@ export function MessageRow({
         ) : null}
         {!message.deleted &&
         ((ownMessage && onEdit) || ((ownMessage || canModerate) && onDelete)) ? (
-          <div className="relative" ref={menuRef}>
+          <div className="relative" ref={desktopMenuRef}>
             <button
               aria-expanded={menuOpen}
               aria-haspopup="menu"
