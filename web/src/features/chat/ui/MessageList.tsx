@@ -17,6 +17,7 @@ import { getLocale, t } from "@/shared/i18n";
 import { truncatePubkey } from "@/shared/lib/pubkey";
 
 const QUICK_REACTIONS = ["👀", "💬", "👍", "❤️"];
+const THREAD_PARTICIPANT_LIMIT = 3;
 
 export function messageDayKey(timestamp: number): string {
   const date = new Date(timestamp * 1_000);
@@ -39,6 +40,36 @@ function formatTime(timestamp: number): string {
   ).format(date);
 }
 
+export function summarizeThreads(
+  messages: TimelineMessage[],
+): Map<string, { count: number; participantPubkeys: string[] }> {
+  const summaries = new Map<string, { count: number; participantPubkeys: string[] }>();
+  for (const message of messages) {
+    if (!message.rootId) continue;
+    const summary = summaries.get(message.rootId) ?? { count: 0, participantPubkeys: [] };
+    summary.count += 1;
+    const participant = message.event.pubkey.toLowerCase();
+    if (!summary.participantPubkeys.includes(participant)) {
+      summary.participantPubkeys.push(participant);
+    }
+    summaries.set(message.rootId, summary);
+  }
+  return summaries;
+}
+
+function profileForPubkey(profiles: Record<string, UserProfile>, pubkey: string): UserProfile {
+  const normalized = pubkey.toLowerCase();
+  return (
+    profiles[normalized] ?? {
+      pubkey: normalized,
+      name: truncatePubkey(normalized),
+      about: "",
+      picture: null,
+      isAgent: false,
+    }
+  );
+}
+
 export function MessageRow({
   message,
   profile,
@@ -46,6 +77,7 @@ export function MessageRow({
   relayUrl,
   presence,
   replyCount = 0,
+  replyParticipants = [],
   showThreadAction = true,
   onOpenThread,
   onReply,
@@ -62,6 +94,7 @@ export function MessageRow({
   relayUrl: string;
   presence?: "online" | "away" | "offline";
   replyCount?: number;
+  replyParticipants?: UserProfile[];
   showThreadAction?: boolean;
   onOpenThread?: (message: TimelineMessage) => void;
   onReply?: (message: TimelineMessage) => void;
@@ -204,7 +237,24 @@ export function MessageRow({
                 type="button"
                 onClick={() => onOpenThread?.(message)}
               >
-                <MessageSquare className="h-3.5 w-3.5" />
+                {replyParticipants.length ? (
+                  <span
+                    aria-hidden="true"
+                    className="flex -space-x-1.5"
+                    data-testid="thread-participants"
+                  >
+                    {replyParticipants.map((participant) => (
+                      <span
+                        className="rounded-full border border-[var(--buzz-content-solid)]"
+                        key={participant.pubkey}
+                      >
+                        <Avatar profile={participant} relayUrl={relayUrl} size={18} />
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <MessageSquare className="h-3.5 w-3.5" />
+                )}
                 {t("message.replyCount", { count: replyCount })}
               </button>
             ) : null}
@@ -339,13 +389,7 @@ export function MessageList({
   const bottomRef = useRef<HTMLDivElement>(null);
   const unreadRef = useRef<HTMLDivElement>(null);
   const topLevel = useMemo(() => messages.filter((message) => !message.rootId), [messages]);
-  const replyCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const message of messages) {
-      if (message.rootId) counts[message.rootId] = (counts[message.rootId] ?? 0) + 1;
-    }
-    return counts;
-  }, [messages]);
+  const threadSummaries = useMemo(() => summarizeThreads(messages), [messages]);
   const lastMessageId = topLevel[topLevel.length - 1]?.event.id;
   const firstUnreadId = topLevel.find(
     (message) =>
@@ -427,13 +471,11 @@ export function MessageList({
           );
         }
         const pubkey = message.event.pubkey.toLowerCase();
-        const profile = profiles[pubkey] ?? {
-          pubkey,
-          name: truncatePubkey(pubkey),
-          about: "",
-          picture: null,
-          isAgent: false,
-        };
+        const profile = profileForPubkey(profiles, pubkey);
+        const threadSummary = threadSummaries.get(message.event.id);
+        const replyParticipants = (threadSummary?.participantPubkeys ?? [])
+          .slice(0, THREAD_PARTICIPANT_LIMIT)
+          .map((participant) => profileForPubkey(profiles, participant));
         return (
           <Fragment key={message.event.id}>
             {dateDivider}
@@ -447,7 +489,8 @@ export function MessageList({
               profiles={profiles}
               relayUrl={relayUrl}
               presence={presence[pubkey]}
-              replyCount={replyCounts[message.event.id] ?? 0}
+              replyCount={threadSummary?.count ?? 0}
+              replyParticipants={replyParticipants}
               onDelete={onDelete}
               onEdit={onEdit}
               onOpenThread={onOpenThread}

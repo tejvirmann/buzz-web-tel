@@ -465,6 +465,33 @@ test("thread replies can target a specific message", async ({ page }) => {
   await expect(thread.getByTestId("thread-bottom")).toBeInViewport();
 });
 
+test("thread summaries show unique participant avatars", async ({ page }) => {
+  await enableDemo(page);
+  await page.goto("/");
+
+  const rootRow = page.locator("article").filter({
+    hasText: "Document the Web client deployment as well.",
+  });
+  await rootRow.getByRole("button", { name: "1 replies" }).click();
+
+  const thread = page.getByRole("complementary", { name: "Thread" });
+  const composer = thread.getByLabel("Reply to thread");
+  await composer.fill("Alex joins the existing Codex thread");
+  await composer.press("Enter");
+
+  const summary = rootRow.getByRole("button", { name: "2 replies" });
+  await expect(summary).toBeVisible();
+  const participants = summary.getByTestId("thread-participants");
+  await expect(participants.locator('[title="Codex(remote)"]')).toHaveCount(1);
+  await expect(participants.locator('[title="Alex"]')).toHaveCount(1);
+  await expect(participants.locator(":scope > *")).toHaveCount(2);
+  await summary.locator("xpath=ancestor::article").screenshot({
+    path: "test-results/visual/buzz-web-thread-participants.png",
+    animations: "disabled",
+  });
+  await expectNoViewportOverflow(page);
+});
+
 test("mention autocomplete works in channel and thread composers", async ({ page }) => {
   await enableDemo(page);
   await page.goto("/");
