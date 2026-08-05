@@ -18,7 +18,9 @@ browser client easier to operate safely as an independent open-source project.
 ## P0: Collaboration Fundamentals
 
 > **Status:** implemented and deployed to the test environment. Authenticated acceptance against
-> the real Relay is still required before release.
+> the real Relay is still required before release. The credential-isolated automated run and the
+> remaining Desktop cross-client checks are documented in
+> [P0 Real Relay Acceptance](docs/p0-relay-acceptance.md).
 
 ### Channel and member management
 
@@ -86,6 +88,9 @@ review, merge, and permission-aware write operations.
 ## P2: Inbox, Forums, and Workflows
 
 ### Inbox productivity
+
+> **Status:** precise source-message and thread-reply navigation is implemented and deployed.
+> Grouping, reminders, Inbox drafts, project activity, and stable pagination remain planned.
 
 **Target:** add conversation grouping, precise source-message navigation, reminders, “remind me
 later,” drafts, and project activity.
