@@ -2,6 +2,8 @@ import type { BlobView, CommitInfo, ReadmeResult, TreeEntry } from "./git-client
 import type { Repo } from "./use-repos";
 
 const now = Math.floor(Date.now() / 1000);
+export const mockRepoPreviewEnabled =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO === "true";
 const people = {
   ada: "1".repeat(64),
   grace: "2".repeat(64),
@@ -59,7 +61,7 @@ export const mockRepos: Repo[] = [
 ];
 
 export function getMockRepo(repoId: string): Repo | undefined {
-  if (!import.meta.env.DEV) return undefined;
+  if (!mockRepoPreviewEnabled) return undefined;
   return mockRepos.find((repo) => repo.id === repoId);
 }
 

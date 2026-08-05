@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import {
-  ArrowLeft,
   BookMarked,
   Check,
+  ChevronRight,
   CircleDot,
   Copy,
   ExternalLink,
@@ -19,10 +19,19 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import type { UserProfile } from "@/features/chat/lib/chat-types";
 import { Avatar } from "@/features/chat/ui/Avatar";
-import { mockRepos } from "@/features/repos/mock-repos";
+import {
+  mockRepoCommits,
+  mockRepoReadme,
+  mockRepos,
+  mockRepoTree,
+} from "@/features/repos/mock-repos";
+import { useGitLog, useGitReadme, useGitTree } from "@/features/repos/use-git-browse";
+import { useRepoRefs } from "@/features/repos/use-repo-refs";
 import { type Repo, useRepos } from "@/features/repos/use-repos";
 import { getLocale, t } from "@/shared/i18n";
 import { truncatePubkey } from "@/shared/lib/pubkey";
+import { RepoContentTabs } from "./RepoContentTabs";
+import { RepoRefsSection } from "./RepoRefsSection";
 
 type SortOrder = "name" | "newest" | "oldest";
 type ProjectTab = "overview" | "repositories" | "pull-requests" | "issues";
@@ -92,16 +101,31 @@ function contributionData(repos: readonly Repo[]) {
 function RepoDetail({
   repo,
   demo,
+  relayUrl,
   onBack,
   onOpenChannel,
 }: {
   repo: Repo;
   demo: boolean;
+  relayUrl: string;
   onBack: () => void;
   onOpenChannel: (channelId: string) => void;
 }) {
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const webUrl = safeWebUrl(repo.webUrl);
+  const { data: refs, isLoading: refsLoading } = useRepoRefs(repo.id, {
+    relayUrl,
+    preview: demo,
+  });
+  const defaultRef = refs?.head?.ref ?? "main";
+  const browseOwner = demo ? "" : repo.owner;
+  const treeQuery = useGitTree(relayUrl, browseOwner, repo.id, defaultRef);
+  const commitsQuery = useGitLog(relayUrl, browseOwner, repo.id, defaultRef);
+  const readmeQuery = useGitReadme(relayUrl, browseOwner, repo.id, defaultRef);
+  const treeEntries = demo ? mockRepoTree : treeQuery.data;
+  const commits = demo ? mockRepoCommits : commitsQuery.data;
+  const readme = demo ? mockRepoReadme : readmeQuery.data;
+  const browseError = treeQuery.error || commitsQuery.error;
 
   const copyCloneUrl = async (url: string) => {
     try {
@@ -115,15 +139,19 @@ function RepoDetail({
 
   return (
     <div className="mt-8">
-      <button
-        aria-label={t("repos.backToList")}
-        className="inline-flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium hover:bg-foreground/5"
-        type="button"
-        onClick={onBack}
-      >
-        <ArrowLeft className="h-4 w-4" />
-        {t("repos.backToList")}
-      </button>
+      <nav aria-label={t("repos.breadcrumb")} className="flex min-w-0 items-center gap-1.5 text-sm">
+        <button
+          className="shrink-0 text-muted-foreground hover:text-foreground"
+          type="button"
+          onClick={onBack}
+        >
+          {t("repos.title")}
+        </button>
+        <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span aria-current="page" className="truncate font-medium">
+          {repo.name}
+        </span>
+      </nav>
 
       <div className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div>
@@ -145,7 +173,25 @@ function RepoDetail({
             <p className="mt-3 text-xs text-muted-foreground">
               {t("repos.updated", { time: relativeTime(repo.createdAt) })}
             </p>
+            <RepoRefsSection refs={refs} isLoading={refsLoading} />
           </div>
+
+          {browseError ? (
+            <div className="mt-5 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {t("error.repoContentsLoad")}: {browseError.message}
+            </div>
+          ) : null}
+
+          <RepoContentTabs
+            commits={commits}
+            commitsLoading={demo ? false : commitsQuery.isLoading}
+            preview={demo}
+            readme={readme}
+            readmeLoading={demo ? false : readmeQuery.isLoading}
+            repoId={repo.id}
+            treeEntries={treeEntries}
+            treeLoading={demo ? false : treeQuery.isLoading}
+          />
 
           {repo.cloneUrls.length ? (
             <section className="border-b py-6">
@@ -363,6 +409,7 @@ export function ReposPanel({
         {selected ? (
           <RepoDetail
             demo={demo}
+            relayUrl={relayUrl}
             repo={selected}
             onBack={() => setSelectedRepoId(null)}
             onOpenChannel={onOpenChannel}

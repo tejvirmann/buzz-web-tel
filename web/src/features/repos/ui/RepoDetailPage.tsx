@@ -1,8 +1,8 @@
 import { Link, useParams } from "@tanstack/react-router";
 import {
-  ArrowLeft,
   BookMarked,
   Check,
+  ChevronRight,
   Copy,
   ExternalLink,
   MessageSquare,
@@ -15,17 +15,20 @@ import { t } from "@/shared/i18n";
 import { relativeTime } from "@/shared/lib/relative-time";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
-import type { CommitInfo, ReadmeResult, TreeEntry } from "../git-client";
-import { getMockRepo, mockRepoCommits, mockRepoReadme, mockRepoTree } from "../mock-repos";
+import {
+  getMockRepo,
+  mockRepoCommits,
+  mockRepoPreviewEnabled,
+  mockRepoReadme,
+  mockRepoTree,
+} from "../mock-repos";
 import { useGitLog, useGitReadme, useGitTree } from "../use-git-browse";
 import { useRepoRefs } from "../use-repo-refs";
 import { useRepo } from "../use-repos";
 import { ConnectButton } from "./ConnectButton";
 import { PubkeyAvatar } from "./PubkeyAvatar";
-import { RepoCommitsSection } from "./RepoCommitsSection";
-import { RepoReadmeSection } from "./RepoReadmeSection";
+import { RepoContentTabs } from "./RepoContentTabs";
 import { RepoRefsSection } from "./RepoRefsSection";
-import { RepoTreeSection } from "./RepoTreeSection";
 
 function CopyableUrl({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
@@ -73,99 +76,34 @@ function DetailSkeleton() {
   );
 }
 
-function BackToRepositories({ mockPreview = false }: { mockPreview?: boolean }) {
-  const className =
-    "inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground";
-  const content = (
-    <>
-      <ArrowLeft className="h-4 w-4" />
-      {t("repos.backToList")}
-    </>
-  );
-
-  return mockPreview ? (
-    <a href="/?preview=repositories" className={className}>
-      {content}
-    </a>
-  ) : (
-    <Link to="/" className={className}>
-      {content}
-    </Link>
-  );
-}
-
-type Tab = "code" | "commits";
-
-function RepoTabs({
-  repoId,
-  treeEntries,
-  treeLoading,
-  commits,
-  commitsLoading,
-  readme,
-  readmeLoading,
-  preview,
+function RepositoryBreadcrumb({
+  name,
+  mockPreview = false,
 }: {
-  repoId: string;
-  treeEntries: TreeEntry[] | undefined;
-  treeLoading: boolean;
-  commits: CommitInfo[] | undefined;
-  commitsLoading: boolean;
-  readme: ReadmeResult | null | undefined;
-  readmeLoading: boolean;
-  preview: boolean;
+  name: string;
+  mockPreview?: boolean;
 }) {
-  const [tab, setTab] = useState<Tab>("code");
-
   return (
-    <div className="mt-6">
-      {/* Tab bar */}
-      <div className="flex gap-1 border-b">
-        <button
-          type="button"
-          onClick={() => setTab("code")}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            tab === "code"
-              ? "border-b-2 border-foreground text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {t("repos.code")}
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("commits")}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            tab === "commits"
-              ? "border-b-2 border-foreground text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {t("repos.commits")}
-        </button>
-      </div>
-
-      {/* Tab content */}
-      {tab === "code" && (
-        <>
-          <RepoTreeSection
-            entries={treeEntries}
-            isLoading={treeLoading}
-            repoId={repoId}
-            preview={preview}
-          />
-          <RepoReadmeSection readme={readme} isLoading={readmeLoading} />
-        </>
-      )}
-      {tab === "commits" && <RepoCommitsSection commits={commits} isLoading={commitsLoading} />}
-    </div>
+    <nav aria-label={t("repos.breadcrumb")} className="flex min-w-0 items-center gap-1.5 text-sm">
+      <Link
+        className="shrink-0 text-muted-foreground hover:text-foreground"
+        search={mockPreview ? { preview: "repositories" } : undefined}
+        to="/repos"
+      >
+        {t("repos.title")}
+      </Link>
+      <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <span aria-current="page" className="truncate font-medium">
+        {name}
+      </span>
+    </nav>
   );
 }
 
 export function RepoDetailPage({ relayUrl }: { relayUrl: string }) {
   const { repoId } = useParams({ from: "/repos/$repoId" });
   const preview =
-    import.meta.env.DEV &&
+    mockRepoPreviewEnabled &&
     new URLSearchParams(window.location.search).get("preview") === "repositories";
   const mockRepo = preview ? getMockRepo(repoId) : undefined;
   const showMockRepo = Boolean(mockRepo);
@@ -232,7 +170,7 @@ export function RepoDetailPage({ relayUrl }: { relayUrl: string }) {
     return (
       <div className="flex w-full flex-1 gap-8 bg-background px-4 py-8 text-foreground">
         <div className="min-w-0 flex-1">
-          <BackToRepositories />
+          <RepositoryBreadcrumb name={repoId} />
           <div className="mt-12 text-center">
             <BookMarked className="mx-auto h-10 w-10 text-black/50 dark:text-white/50" />
             <h1 className="mt-4 text-xl font-semibold text-black dark:text-white">
@@ -252,8 +190,7 @@ export function RepoDetailPage({ relayUrl }: { relayUrl: string }) {
     <div className="mx-auto flex w-full max-w-[1440px] flex-1 gap-8 bg-background px-4 py-8 text-foreground sm:px-6">
       {/* Main content */}
       <div className="min-w-0 flex-1">
-        {/* Back link */}
-        <BackToRepositories mockPreview={preview} />
+        <RepositoryBreadcrumb mockPreview={preview} name={repo.name} />
 
         {/* Mobile-only connect button */}
         <div className="mt-4 lg:hidden">
@@ -289,7 +226,7 @@ export function RepoDetailPage({ relayUrl }: { relayUrl: string }) {
         )}
 
         {/* Tabs */}
-        <RepoTabs
+        <RepoContentTabs
           repoId={repoId}
           treeEntries={treeEntries}
           treeLoading={treeLoading}

@@ -6,7 +6,7 @@ import buzzAppIcon from "@/assets/app-icon@3x.png";
 import { AuthenticatedRoute } from "@/features/chat/ui/AuthenticatedRoute";
 import { t } from "@/shared/i18n";
 import { Input } from "@/shared/ui/input";
-import { mockRepos } from "../mock-repos";
+import { mockRepoPreviewEnabled, mockRepos } from "../mock-repos";
 import { useRepos } from "../use-repos";
 import { ConnectButton } from "./ConnectButton";
 import { OrgSidebar } from "./OrgSidebar";
@@ -65,7 +65,7 @@ function CommunityEmptyState({ relayUrl }: { relayUrl: string }) {
 }
 
 export function ReposPage({ relayUrl }: { relayUrl: string }) {
-  const preview = import.meta.env.DEV
+  const preview = mockRepoPreviewEnabled
     ? new URLSearchParams(window.location.search).get("preview")
     : null;
   const showMockRepos = preview === "repositories";

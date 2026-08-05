@@ -19,7 +19,7 @@ import { AuthenticatedRoute } from "@/features/chat/ui/AuthenticatedRoute";
 import { t } from "@/shared/i18n";
 import { Button } from "@/shared/ui/button";
 import type { BlobView } from "../git-client";
-import { getMockBlob } from "../mock-repos";
+import { getMockBlob, mockRepoPreviewEnabled } from "../mock-repos";
 import { useGitBlob, useGitHtmlDoc } from "../use-git-browse";
 import { useRepoContext } from "../use-repo-context";
 
@@ -209,7 +209,7 @@ export function RepoBlobPage({ relayUrl }: { relayUrl: string }) {
   const { repoId, _splat } = useParams({ from: "/repos/$repoId/blob/$" });
   const filepath = _splat ?? "";
   const preview =
-    import.meta.env.DEV &&
+    mockRepoPreviewEnabled &&
     new URLSearchParams(window.location.search).get("preview") === "repositories";
   const mockView = preview ? getMockBlob(repoId, filepath) : undefined;
   const showMockBlob = Boolean(mockView);
