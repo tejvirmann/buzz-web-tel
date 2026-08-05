@@ -19,6 +19,7 @@ type Subscription = {
   resolve?: (events: NostrEvent[]) => void;
   reject?: (error: Error) => void;
   timeout?: number;
+  retryTimer?: number;
 };
 
 type PendingPublish = {
@@ -30,6 +31,22 @@ type PendingPublish = {
 
 const OPERATION_TIMEOUT_MS = 25_000;
 const RECONNECT_MAX_MS = 30_000;
+const RATE_LIMIT_RETRY_DEFAULT_MS = 1_000;
+const RATE_LIMIT_RETRY_MIN_MS = 250;
+const RATE_LIMIT_RETRY_MAX_MS = 30_000;
+
+function rateLimitRetryDelay(message: string): number | null {
+  if (!/^\s*rate-limited\s*:/i.test(message)) return null;
+  const retry = message.match(/retry\s+in\s+(\d+(?:\.\d+)?)\s*(ms|s|m)\b/i);
+  if (!retry) return RATE_LIMIT_RETRY_DEFAULT_MS;
+  const value = Number.parseFloat(retry[1] ?? "");
+  const unit = retry[2]?.toLowerCase();
+  const multiplier = unit === "m" ? 60_000 : unit === "s" ? 1_000 : 1;
+  return Math.min(
+    Math.max(Math.ceil(value * multiplier), RATE_LIMIT_RETRY_MIN_MS),
+    RATE_LIMIT_RETRY_MAX_MS,
+  );
+}
 
 export class BuzzRelayClient {
   readonly relayUrl: string;
@@ -105,6 +122,7 @@ export class BuzzRelayClient {
     socket?.close(1000, "sign out");
     this.setState("idle");
     for (const [id, subscription] of this.subscriptions) {
+      this.clearSubscriptionRetry(subscription);
       if (!subscription.persistent) {
         subscription.reject?.(error);
         this.clearSubscription(id, subscription);
@@ -266,9 +284,13 @@ export class BuzzRelayClient {
     if (type === "CLOSED" && typeof data[1] === "string") {
       const subscription = this.subscriptions.get(data[1]);
       if (!subscription) return;
-      const error = new Error(
-        typeof data[2] === "string" ? data[2] : t("error.relaySubscriptionClosed"),
-      );
+      const message = typeof data[2] === "string" ? data[2] : "";
+      const retryDelay = rateLimitRetryDelay(message);
+      if (retryDelay !== null) {
+        this.scheduleSubscriptionRetry(data[1], subscription, retryDelay);
+        return;
+      }
+      const error = new Error(message || t("error.relaySubscriptionClosed"));
       subscription.reject?.(error);
       this.clearSubscription(data[1], subscription);
     }
@@ -289,7 +311,10 @@ export class BuzzRelayClient {
       this.resolveConnect = null;
       this.rejectConnect = null;
       for (const [id, subscription] of this.subscriptions) {
-        if (subscription.persistent) this.send(["REQ", id, subscription.filter]);
+        if (subscription.persistent) {
+          this.clearSubscriptionRetry(subscription);
+          this.send(["REQ", id, subscription.filter]);
+        }
       }
       return;
     }
@@ -304,8 +329,31 @@ export class BuzzRelayClient {
 
   private clearSubscription(id: string, subscription: Subscription): void {
     if (subscription.timeout !== undefined) window.clearTimeout(subscription.timeout);
+    this.clearSubscriptionRetry(subscription);
     this.subscriptions.delete(id);
     if (this.socket?.readyState === WebSocket.OPEN) this.send(["CLOSE", id]);
+  }
+
+  private scheduleSubscriptionRetry(id: string, subscription: Subscription, delay: number): void {
+    if (subscription.retryTimer !== undefined) return;
+    subscription.retryTimer = window.setTimeout(() => {
+      subscription.retryTimer = undefined;
+      if (
+        this.subscriptions.get(id) !== subscription ||
+        this.state !== "connected" ||
+        this.socket?.readyState !== WebSocket.OPEN
+      ) {
+        return;
+      }
+      if (!subscription.persistent) subscription.events = [];
+      this.send(["REQ", id, subscription.filter]);
+    }, delay);
+  }
+
+  private clearSubscriptionRetry(subscription: Subscription): void {
+    if (subscription.retryTimer === undefined) return;
+    window.clearTimeout(subscription.retryTimer);
+    subscription.retryTimer = undefined;
   }
 
   private clearAuthTimeout(): void {
@@ -333,6 +381,7 @@ export class BuzzRelayClient {
     this.socket = null;
     this.authEventId = null;
     for (const [id, subscription] of this.subscriptions) {
+      this.clearSubscriptionRetry(subscription);
       if (!subscription.persistent) {
         subscription.reject?.(new Error(t("error.relayQueryInterrupted")));
         this.clearSubscription(id, subscription);
