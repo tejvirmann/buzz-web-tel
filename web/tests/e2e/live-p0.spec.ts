@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { expect, type Page, test } from "@playwright/test";
+import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { nip19 } from "nostr-tools";
 import { getPublicKey } from "nostr-tools/pure";
 
@@ -149,6 +149,76 @@ async function removeManagedMember(page: Page) {
   await members.getByRole("button", { name: "Close" }).click();
 }
 
+async function inboxUnreadCount(page: Page): Promise<number> {
+  const badge = page.getByTestId("inbox-unread-count");
+  if (!(await badge.count())) return 0;
+  const value = (await badge.textContent())?.trim() ?? "0";
+  return value === "99+" ? 100 : Number.parseInt(value, 10);
+}
+
+async function exerciseReconnectInboxRecovery(
+  adminPage: Page,
+  memberPage: Page,
+  memberContext: BrowserContext,
+  channelName: string,
+  runId: string,
+) {
+  await memberPage
+    .getByTestId("workspace-tool-settings")
+    .getByRole("button", { name: "Back" })
+    .click();
+  const memberRootText = `member reconnect root ${runId}`;
+  const memberComposer = memberPage.getByLabel(`Send a message to #${channelName}`);
+  await memberComposer.fill(memberRootText);
+  await memberComposer.press("Enter");
+  await expect(memberPage.locator("article").filter({ hasText: memberRootText })).toBeVisible({
+    timeout: 30_000,
+  });
+
+  const adminRoot = adminPage.locator("article").filter({ hasText: memberRootText });
+  await expect(adminRoot).toBeVisible({ timeout: 30_000 });
+  await memberPage.keyboard.press("Control+,");
+  const settings = memberPage.getByTestId("workspace-tool-settings");
+  await expect(settings).toBeVisible();
+  const status = settings
+    .locator("dt")
+    .filter({ hasText: "Status" })
+    .locator("xpath=following-sibling::dd[1]");
+  const unreadBefore = await inboxUnreadCount(memberPage);
+
+  await memberContext.setOffline(true);
+  await expect(status).toHaveText(/Disconnected|Reconnecting/, { timeout: 30_000 });
+
+  const replyText = `reply delivered after reconnect ${runId}`;
+  await adminRoot.hover();
+  await adminRoot.getByRole("button", { name: "Reply in thread" }).click();
+  const adminThread = adminPage.getByRole("complementary", { name: "Thread" });
+  await adminThread.getByLabel("Reply to thread").fill(replyText);
+  await adminThread.getByLabel("Reply to thread").press("Enter");
+  await expect(adminThread.getByText(replyText, { exact: true })).toBeVisible({ timeout: 30_000 });
+  await adminThread.getByRole("button", { name: "Close thread" }).click();
+
+  await memberContext.setOffline(false);
+  await expect(status).toHaveText("Connected", { timeout: 30_000 });
+  const memberChannel = memberPage.getByRole("button", { name: channelName, exact: true });
+  await expect(memberChannel).toHaveAttribute("title", /\d+ unread in /, { timeout: 30_000 });
+  await expect
+    .poll(() => inboxUnreadCount(memberPage), { timeout: 30_000 })
+    .toBeGreaterThan(unreadBefore);
+
+  await memberPage.getByRole("button", { name: "Inbox", exact: true }).first().click();
+  const inbox = memberPage.getByTestId("workspace-tool-inbox");
+  await expect(inbox.getByText(replyText, { exact: true })).toBeVisible({ timeout: 30_000 });
+  await inbox.getByRole("button", { name: new RegExp(replyText) }).click();
+  await inbox.getByRole("button", { name: "Open conversation" }).click();
+  const memberThread = memberPage.getByRole("complementary", { name: "Thread" });
+  await expect(memberThread.getByText(replyText, { exact: true })).toBeVisible();
+  await memberThread.getByRole("button", { name: "Close thread" }).click();
+  await expect(memberChannel).not.toHaveAttribute("title", /unread in /, { timeout: 30_000 });
+  await memberPage.keyboard.press("Control+,");
+  await expect(memberPage.getByTestId("workspace-tool-settings")).toBeVisible();
+}
+
 async function exerciseMessageLifecycle(
   page: Page,
   channelName: string,
@@ -268,6 +338,8 @@ test("P0 collaboration workflows interoperate with a real Relay", async ({ brows
     await openChannel(memberPage, channelName);
     await memberPage.keyboard.press("Control+,");
     await expect(memberPage.getByTestId("workspace-tool-settings")).toBeVisible();
+
+    await exerciseReconnectInboxRecovery(adminPage, memberPage, memberContext, channelName, runId);
 
     await exerciseMessageLifecycle(adminPage, channelName, runId, async () => {
       const memberChannel = memberPage.getByRole("button", { name: channelName, exact: true });

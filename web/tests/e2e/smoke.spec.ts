@@ -52,6 +52,7 @@ async function expectNoViewportOverflow(page: Page) {
 }
 
 test("chat workspace loads with Buzz branding and relay data", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await enableDemo(page);
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
@@ -83,6 +84,10 @@ test("chat workspace loads with Buzz branding and relay data", async ({ page }) 
   await expect(search.getByRole("button", { name: "New direct message" })).toBeVisible();
   await expect(search.getByPlaceholder("Search this Relay")).toBeFocused();
   await expect(search.getByText("general", { exact: true })).toBeVisible();
+  await search.getByPlaceholder("Search this Relay").fill("Relay");
+  await expect(search.getByText(/Relay is healthy/)).toBeVisible();
+  await search.getByPlaceholder("Search this Relay").fill("");
+  await expect(search.getByText("general", { exact: true })).toBeVisible();
   await search.getByRole("button", { name: "Close" }).click();
 
   await page.keyboard.press("Control+f");
@@ -96,6 +101,9 @@ test("chat workspace loads with Buzz branding and relay data", async ({ page }) 
   await expect(details.getByRole("button", { name: "Add to favorites" })).toBeVisible();
   await expect(details.getByRole("button", { name: "Mute channel" })).toBeVisible();
   await expect(details.getByRole("button", { name: "Archive channel" })).toBeVisible();
+  await expect(
+    details.getByText("Build, operate, and learn together", { exact: true }),
+  ).toBeVisible();
   await details.getByRole("button", { name: "Close channel details" }).click();
   await expectNoViewportOverflow(page);
   await page.screenshot({
@@ -153,6 +161,22 @@ test("mobile layout exposes the channel drawer", async ({ page }) => {
   await enableDemo(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "general" })).toBeVisible();
+  const message = page.locator("article").filter({
+    hasText: "Relay is healthy. Postgres, Redis, MinIO, and Git are available.",
+  });
+  await expect(message.getByRole("button", { name: "Open message actions" })).toBeVisible();
+  await expect(message.getByRole("button", { name: "Reaction 👀" })).toBeHidden();
+  await message.getByRole("button", { name: "Open message actions" }).click();
+  const actions = message.getByRole("menu", { name: "More message actions" });
+  await expect(actions.getByRole("menuitem", { name: "Reaction 👀" })).toBeVisible();
+  await expect(actions.getByRole("menuitem", { name: "Reply in thread" })).toBeVisible();
+  await expectNoViewportOverflow(page);
+  await page.screenshot({
+    path: "test-results/visual/buzz-web-mobile-actions.png",
+    animations: "disabled",
+  });
+  await page.keyboard.press("Escape");
+  await expect(actions).toHaveCount(0);
   await expectNoViewportOverflow(page);
   await page.screenshot({
     path: "test-results/visual/buzz-web-mobile.png",
@@ -197,6 +221,27 @@ test("mobile Inbox and Agents views remain usable", async ({ page }) => {
   });
 });
 
+test("unsupported media is rejected before contacting the Relay", async ({ page }) => {
+  let uploadRequests = 0;
+  await enableDemo(page);
+  await page.route("**/upload", async (route) => {
+    uploadRequests += 1;
+    await route.fulfill({ status: 500 });
+  });
+  await page.goto("/");
+
+  await page
+    .locator('input[type="file"]')
+    .first()
+    .setInputFiles({
+      name: "camera.heic",
+      mimeType: "image/heic",
+      buffer: Buffer.from([0, 0, 0, 20]),
+    });
+  await expect(page.getByText("This media format isn't supported for upload.")).toBeVisible();
+  expect(uploadRequests).toBe(0);
+});
+
 test("desktop channel panel resizes and restores its saved width", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await enableDemo(page);
@@ -239,7 +284,18 @@ test("member modal and right panels use the Mac-style interaction model", async 
   const members = page.getByRole("dialog", { name: "Members · 3" });
   await expect(members).toBeVisible();
   await expect(page.getByRole("separator", { name: /member panel/i })).toHaveCount(0);
-  await members.getByRole("button", { name: "Close" }).click();
+  await members.getByRole("button", { name: "Add member" }).click();
+  await members.getByLabel("Member public key").fill("c".repeat(64));
+  await members.getByRole("button", { name: "Add member" }).last().click();
+  await expect(page.getByRole("dialog", { name: "Members · 4" })).toBeVisible();
+  const updatedMembers = page.getByRole("dialog", { name: "Members · 4" });
+  await updatedMembers.getByRole("button", { name: /^Remove / }).click();
+  const removeConfirmation = page.getByRole("dialog", { name: "Remove member" });
+  await expect(removeConfirmation).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(removeConfirmation).toHaveCount(0);
+  await expect(updatedMembers).toBeVisible();
+  await updatedMembers.getByRole("button", { name: "Close" }).click();
 
   await page.getByRole("button", { name: "Channel details" }).click();
   const details = page.getByRole("complementary", { name: "Channel details" });
@@ -606,6 +662,23 @@ test("workspace tools replace chat while preserving channel navigation", async (
     animations: "disabled",
   });
 
+  await reposPanel.getByRole("button", { name: /buzz-desktop/ }).click();
+  const breadcrumb = reposPanel.getByRole("navigation", { name: "Repository breadcrumb" });
+  await expect(breadcrumb).toContainText("Repositories");
+  await expect(breadcrumb).toContainText("buzz-desktop");
+  await expect(reposPanel.getByRole("tab", { name: "Code" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(reposPanel.getByRole("link", { name: "README.md" })).toBeVisible();
+  await reposPanel.getByRole("tab", { name: "Commits" }).click();
+  await expect(reposPanel.getByText("Polish repository browsing styles")).toBeVisible();
+  await page.screenshot({
+    path: "test-results/visual/buzz-web-repo-detail.png",
+    animations: "disabled",
+  });
+  await breadcrumb.getByRole("button", { name: "Repositories" }).click();
+
   await page.getByRole("button", { name: "general", exact: true }).click();
   await expect(reposPanel).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "general" })).toBeVisible();
@@ -624,6 +697,23 @@ test("workspace tools replace chat while preserving channel navigation", async (
   await expect(page.getByTestId("workspace-tool-agents")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "general" })).toBeVisible();
   await expect(composer).toBeVisible();
+});
+
+test("standalone repository details use breadcrumbs and content tabs", async ({ page }) => {
+  await enableDemo(page);
+  await page.goto("/repos/buzz-desktop?preview=repositories");
+
+  const breadcrumb = page.getByRole("navigation", { name: "Repository breadcrumb" });
+  await expect(breadcrumb.getByRole("link", { name: "Repositories" })).toHaveAttribute(
+    "href",
+    /\/repos\?preview=repositories$/,
+  );
+  await expect(breadcrumb).toContainText("buzz-desktop");
+  await expect(page.getByRole("tab", { name: "Code" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("link", { name: "README.md" })).toBeVisible();
+  await page.getByRole("tab", { name: "Commits" }).click();
+  await expect(page.getByText("Polish repository browsing styles")).toBeVisible();
+  await expectNoViewportOverflow(page);
 });
 
 test("community admins can add a member or generate an invite link", async ({ page }) => {
@@ -803,15 +893,58 @@ test("Chinese browsers receive the Chinese interface", async ({ browser }) => {
   await expect(page.getByRole("button", { name: "搜索" }).first()).toBeVisible();
   await expect(page.getByText("创建了此频道", { exact: true })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await page.screenshot({
+    path: "test-results/visual/buzz-web-desktop-zh.png",
+    animations: "disabled",
+  });
   await page.keyboard.press("Control+f");
   const channelSearch = page.getByRole("dialog", { name: "在 #general 中搜索" });
   await expect(channelSearch.getByPlaceholder("搜索当前频道")).toBeFocused();
   await channelSearch.getByRole("button", { name: "关闭" }).click();
 
+  await page.getByRole("button", { name: "发起私聊" }).click();
+  const newDm = page.getByTestId("workspace-tool-new-dm");
+  await expect(newDm.getByRole("heading", { name: "发起私聊" })).toBeVisible();
+  await newDm.getByLabel("搜索成员或 Agent").fill("不存在");
+  await expect(newDm.getByText("没有匹配的成员")).toBeVisible();
+  await newDm.getByRole("button", { name: "关闭新私聊" }).click();
+
+  await page
+    .locator('input[type="file"]')
+    .first()
+    .setInputFiles({
+      name: "camera.heic",
+      mimeType: "image/heic",
+      buffer: Buffer.from([0, 0, 0, 20]),
+    });
+  await expect(page.getByText("暂不支持上传此媒体格式。")).toBeVisible();
+
   await page.goto("/invite/demo-code");
   await expect(page.getByRole("heading", { name: "你受邀加入" })).toBeVisible();
   await expect(page.getByRole("link", { name: "立即下载" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await context.close();
+});
+
+test("wide dark Chinese workspace remains readable", async ({ browser }) => {
+  const context = await browser.newContext({
+    colorScheme: "dark",
+    locale: "zh-CN",
+    viewport: { width: 1720, height: 900 },
+  });
+  await context.addInitScript(() => localStorage.setItem("buzz-web-theme", "dark"));
+  const page = await context.newPage();
+  await enableDemo(page);
+  await page.goto("/");
+
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await expect(page.getByRole("heading", { name: "general" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "搜索" }).first()).toBeVisible();
+  await expectNoViewportOverflow(page);
+  await page.screenshot({
+    path: "test-results/visual/buzz-web-wide-dark-zh.png",
+    animations: "disabled",
+  });
   await context.close();
 });
 
