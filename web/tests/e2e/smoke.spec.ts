@@ -357,6 +357,7 @@ test("message images keep their reserved layout while loading", async ({ page })
   const imageBody = await readFile(new URL("../../public/app-icon.png", import.meta.url));
   let releaseImage = () => {};
   let markRequested = () => {};
+  let imageRequests = 0;
   const requested = new Promise<void>((resolve) => {
     markRequested = resolve;
   });
@@ -366,6 +367,7 @@ test("message images keep their reserved layout while loading", async ({ page })
 
   await enableDemo(page);
   await page.route("**/media/layout-test.png", async (route) => {
+    imageRequests += 1;
     markRequested();
     await released;
     await route.fulfill({ body: imageBody, contentType: "image/png", status: 200 });
@@ -390,11 +392,22 @@ test("message images keep their reserved layout while loading", async ({ page })
   await image.evaluate(async (element) => {
     await (element as HTMLImageElement).decode();
   });
+  const loadedImage = await image.elementHandle();
+  const loadedRow = await frame.locator("xpath=ancestor::article").elementHandle();
+  expect(loadedImage).not.toBeNull();
+  expect(loadedRow).not.toBeNull();
   const after = await frame.boundingBox();
   expect(after).not.toBeNull();
 
   expect(Math.abs((after?.width ?? 0) - (before?.width ?? 0))).toBeLessThan(1);
   expect(Math.abs((after?.height ?? 0) - (before?.height ?? 0))).toBeLessThan(1);
+
+  await composer.fill("Keep the loaded image mounted");
+  await composer.press("Enter");
+  await expect(page.getByText("Keep the loaded image mounted", { exact: true })).toBeVisible();
+  expect(await loadedRow?.evaluate((element) => element.isConnected)).toBe(true);
+  expect(imageRequests).toBe(1);
+  expect(await loadedImage?.evaluate((element) => element.isConnected)).toBe(true);
   await expectNoViewportOverflow(page);
 });
 
