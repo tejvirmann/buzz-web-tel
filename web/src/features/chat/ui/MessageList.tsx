@@ -173,7 +173,12 @@ export function MessageRow({
           {message.deleted ? (
             <p className="text-sm italic text-muted-foreground">{t("message.deleted")}</p>
           ) : (
-            <MessageContent content={message.content} mentions={mentions} relayUrl={relayUrl} />
+            <MessageContent
+              content={message.content}
+              mediaTags={message.event.tags}
+              mentions={mentions}
+              relayUrl={relayUrl}
+            />
           )}
         </div>
         {(!message.deleted && message.reactions.length) || replyCount ? (

@@ -368,6 +368,7 @@ export function InboxView({
                           <div className="mt-2">
                             <MessageContent
                               content={item.event.content || t("inbox.noDetails")}
+                              mediaTags={item.event.tags}
                               relayUrl={relayUrl}
                             />
                           </div>

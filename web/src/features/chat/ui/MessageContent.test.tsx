@@ -6,6 +6,7 @@ const PERSON = "11".repeat(32);
 const AGENT = "22".repeat(32);
 const MULTILINE_CONTENT = "@Alex 第一行\n@Codex(remote) 第二行";
 const PLAIN_CONTENT = "@Unknown and `@Alex`";
+const IMAGE_URL = "https://relay.example.com/media/poster.png";
 
 describe("MessageContent", () => {
   it("renders human and agent mentions and preserves soft line breaks", () => {
@@ -40,5 +41,28 @@ describe("MessageContent", () => {
 
     expect(html).not.toContain('data-mention=""');
     expect(html).toContain("@Unknown and <code>@Alex</code>");
+  });
+
+  it("reserves the final imeta dimensions while a protected image loads", () => {
+    const html = renderToStaticMarkup(
+      <MessageContent
+        content={`![poster](${IMAGE_URL})`}
+        mediaTags={[
+          [
+            "imeta",
+            `url ${IMAGE_URL}`,
+            "m image/png",
+            `x ${"ab".repeat(32)}`,
+            "size 1000",
+            "dim 1080x1920",
+          ],
+        ]}
+        relayUrl="wss://relay.example.com"
+      />,
+    );
+
+    expect(html).toContain('data-protected-image-frame="true"');
+    expect(html).toContain("aspect-ratio:1080 / 1920");
+    expect(html).toContain("width:min(100%, 144px)");
   });
 });

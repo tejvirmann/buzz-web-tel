@@ -270,8 +270,8 @@
 }
 
 .buzz-message-markdown img {
-  max-height: 24rem;
-  max-width: min(100%, 38rem);
+  max-height: 16rem;
+  max-width: min(100%, 24rem);
   border-radius: 0.375rem;
   object-fit: contain;
 }

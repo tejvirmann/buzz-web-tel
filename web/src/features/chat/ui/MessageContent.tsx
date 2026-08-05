@@ -8,6 +8,35 @@ import { authenticatedMediaObjectUrl } from "@/shared/api/media-client";
 import { relayHttpOrigin } from "@/shared/config/runtime-config";
 import { t } from "@/shared/i18n";
 
+const IMAGE_MAX_WIDTH = 384;
+const IMAGE_MAX_HEIGHT = 256;
+const DEFAULT_IMAGE_DIMENSIONS = { width: IMAGE_MAX_WIDTH, height: IMAGE_MAX_HEIGHT };
+
+type ImageDimensions = { width: number; height: number };
+
+function dimensionsFromDim(value: string | undefined): ImageDimensions | null {
+  const match = value?.match(/^(\d+)x(\d+)$/i);
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+  return { width, height };
+}
+
+function imetaImageDimensions(mediaTags: readonly (readonly string[])[] | undefined) {
+  const dimensions = new Map<string, ImageDimensions>();
+  for (const tag of mediaTags ?? []) {
+    if (tag[0] !== "imeta") continue;
+    const url = tag.find((part) => part.startsWith("url "))?.slice(4);
+    const dim = tag.find((part) => part.startsWith("dim "))?.slice(4);
+    const parsed = dimensionsFromDim(dim);
+    if (url && parsed) dimensions.set(url, parsed);
+  }
+  return dimensions;
+}
+
 function isRelayMediaUrl(value: string | undefined, relayUrl: string): boolean {
   if (!value) return false;
   try {
@@ -19,7 +48,17 @@ function isRelayMediaUrl(value: string | undefined, relayUrl: string): boolean {
   }
 }
 
-function ProtectedImage({ src, alt, relayUrl }: { src?: string; alt?: string; relayUrl: string }) {
+function ProtectedImage({
+  src,
+  alt,
+  relayUrl,
+  dimensions,
+}: {
+  src?: string;
+  alt?: string;
+  relayUrl: string;
+  dimensions?: ImageDimensions;
+}) {
   const [resolved, setResolved] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -38,21 +77,42 @@ function ProtectedImage({ src, alt, relayUrl }: { src?: string; alt?: string; re
       cancelled = true;
     };
   }, [relayUrl, src]);
-  if (failed) {
-    return (
-      <span className="inline-flex items-center gap-2 rounded border px-3 py-2 text-xs text-muted-foreground">
-        <ImageOff className="h-4 w-4" /> {t("message.imageFailed")}
-      </span>
-    );
-  }
-  if (!resolved) {
-    return (
-      <span className="inline-flex h-24 w-40 items-center justify-center rounded bg-foreground/5">
+  const intrinsic = dimensions ?? DEFAULT_IMAGE_DIMENSIONS;
+  const scale = dimensions
+    ? Math.min(1, IMAGE_MAX_WIDTH / dimensions.width, IMAGE_MAX_HEIGHT / dimensions.height)
+    : 1;
+  const frameStyle = dimensions
+    ? {
+        aspectRatio: `${dimensions.width} / ${dimensions.height}`,
+        width: `min(100%, ${Math.max(1, Math.round(dimensions.width * scale))}px)`,
+      }
+    : { height: `${IMAGE_MAX_HEIGHT}px`, width: `min(100%, ${IMAGE_MAX_WIDTH}px)` };
+
+  return (
+    <span
+      className="relative inline-flex max-w-full items-center justify-center overflow-hidden rounded-md bg-foreground/5 align-top"
+      data-protected-image-frame="true"
+      style={frameStyle}
+    >
+      {failed ? (
+        <span className="inline-flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
+          <ImageOff className="h-4 w-4" /> {t("message.imageFailed")}
+        </span>
+      ) : !resolved ? (
         <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
-      </span>
-    );
-  }
-  return <img alt={alt || t("message.attachmentImage")} loading="lazy" src={resolved} />;
+      ) : (
+        <img
+          alt={alt || t("message.attachmentImage")}
+          className="block h-full w-full object-contain"
+          decoding="async"
+          height={intrinsic.height}
+          loading="lazy"
+          src={resolved}
+          width={intrinsic.width}
+        />
+      )}
+    </span>
+  );
 }
 
 function ProtectedLink({
@@ -120,17 +180,27 @@ export function MessageContent({
   content,
   relayUrl,
   mentions = [],
+  mediaTags,
 }: {
   content: string;
   relayUrl: string;
   mentions?: readonly MessageMention[];
+  mediaTags?: readonly (readonly string[])[];
 }) {
   const mentionsByName = new Map(
     mentions.map((mention) => [mention.name.trim().toLocaleLowerCase(), mention]),
   );
   const mentionNames = [...mentionsByName.values()].map((mention) => mention.name);
+  const dimensionsByUrl = imetaImageDimensions(mediaTags);
   const components = {
-    img: ({ src, alt }) => <ProtectedImage src={src} alt={alt} relayUrl={relayUrl} />,
+    img: ({ src, alt }) => (
+      <ProtectedImage
+        src={src}
+        alt={alt}
+        dimensions={src ? dimensionsByUrl.get(src) : undefined}
+        relayUrl={relayUrl}
+      />
+    ),
     a: ({ href, children }) => (
       <ProtectedLink href={href} relayUrl={relayUrl}>
         {children}

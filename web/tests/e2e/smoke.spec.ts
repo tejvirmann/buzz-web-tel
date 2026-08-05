@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { expect, type Page, test } from "@playwright/test";
 import {
   type EventTemplate,
@@ -349,6 +350,52 @@ test("message reactions toggle once and use the Mac-style capsule shape", async 
     path: "test-results/visual/buzz-web-reaction-capsule.png",
     animations: "disabled",
   });
+});
+
+test("message images keep their reserved layout while loading", async ({ page }) => {
+  const imageUrl = "https://cdn.example.com/media/layout-test.png";
+  const imageBody = await readFile(new URL("../../public/app-icon.png", import.meta.url));
+  let releaseImage = () => {};
+  let markRequested = () => {};
+  const requested = new Promise<void>((resolve) => {
+    markRequested = resolve;
+  });
+  const released = new Promise<void>((resolve) => {
+    releaseImage = resolve;
+  });
+
+  await enableDemo(page);
+  await page.route("**/media/layout-test.png", async (route) => {
+    markRequested();
+    await released;
+    await route.fulfill({ body: imageBody, contentType: "image/png", status: 200 });
+  });
+  await page.goto("/");
+
+  const composer = page.getByLabel("Send a message to #general");
+  await composer.fill(`![poster](${imageUrl})`);
+  await composer.press("Enter");
+  await requested;
+
+  const frame = page.locator('[data-protected-image-frame="true"]').last();
+  await expect(frame).toBeVisible();
+  const before = await frame.boundingBox();
+  expect(before).not.toBeNull();
+  expect(before?.width).toBe(384);
+  expect(before?.height).toBe(256);
+
+  releaseImage();
+  const image = frame.getByRole("img", { name: "poster" });
+  await expect(image).toBeVisible();
+  await image.evaluate(async (element) => {
+    await (element as HTMLImageElement).decode();
+  });
+  const after = await frame.boundingBox();
+  expect(after).not.toBeNull();
+
+  expect(Math.abs((after?.width ?? 0) - (before?.width ?? 0))).toBeLessThan(1);
+  expect(Math.abs((after?.height ?? 0) - (before?.height ?? 0))).toBeLessThan(1);
+  await expectNoViewportOverflow(page);
 });
 
 test("thread replies can target a specific message", async ({ page }) => {
