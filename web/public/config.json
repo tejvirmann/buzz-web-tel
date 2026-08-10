@@ -1,6 +1,6 @@
 {
-  "communityName": "Buzz",
-  "relayUrl": "ws://localhost:3000",
+  "communityName": "TEL Madison",
+  "relayUrl": "wss://buzz.178.156.220.170.sslip.io",
   "features": {
     "projects": false,
     "forum": false
