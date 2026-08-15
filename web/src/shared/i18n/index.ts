@@ -126,6 +126,14 @@ const messages = {
   "identity.backToIdentities": { en: "Back to identities", "zh-CN": "返回身份列表" },
   "identity.backup": { en: "Identity backup", "zh-CN": "身份备份" },
   "identity.backupPassphrase": { en: "Backup passphrase", "zh-CN": "备份口令" },
+  "identity.backupPassphraseTooShort": {
+    en: "Needs at least {count} more character(s).",
+    "zh-CN": "还需至少 {count} 个字符。",
+  },
+  "identity.confirmPassphraseMismatch": {
+    en: "Passphrases don't match.",
+    "zh-CN": "两次输入的口令不一致。",
+  },
   "identity.backupValue": { en: "ncryptsec backup", "zh-CN": "ncryptsec 备份" },
   "identity.backupWarning": {
     en: "Download an encrypted backup and keep its passphrase separately. Losing both the vault and backup permanently loses this identity.",
@@ -184,6 +192,11 @@ const messages = {
   "identity.restore": { en: "Restore", "zh-CN": "恢复" },
   "identity.restoreTitle": { en: "Restore an encrypted backup", "zh-CN": "恢复加密备份" },
   "identity.switch": { en: "Switch identity", "zh-CN": "切换身份" },
+  "identity.switchConfirm": {
+    en: "You'll be signed out of this account on this device. To get back in, you'll need to request a new login link at the email you joined with. Continue?",
+    "zh-CN":
+      "你将在此设备上退出该账号。如需重新登录，需要用当初加入时使用的邮箱重新获取登录链接。是否继续？",
+  },
   "identity.unlock": { en: "Unlock", "zh-CN": "解锁" },
   "identity.useAnother": { en: "Use another identity", "zh-CN": "使用其他身份" },
   "inbox.all": { en: "All", "zh-CN": "全部" },

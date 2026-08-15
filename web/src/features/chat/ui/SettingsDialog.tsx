@@ -284,6 +284,15 @@ function IdentitySection({
                 onChange={(event) => setBackupConfirmation(event.target.value)}
               />
             </label>
+            {backupPassword && backupPassword.length < 12 ? (
+              <p className="text-xs text-destructive sm:col-span-2">
+                {t("identity.backupPassphraseTooShort", { count: 12 - backupPassword.length })}
+              </p>
+            ) : backupConfirmation && backupPassword !== backupConfirmation ? (
+              <p className="text-xs text-destructive sm:col-span-2">
+                {t("identity.confirmPassphraseMismatch")}
+              </p>
+            ) : null}
           </div>
         ) : null}
         {localIdentity ? (
@@ -351,7 +360,10 @@ function IdentitySection({
         <button
           className="h-9 rounded-md border px-3 text-sm hover:bg-foreground/5"
           type="button"
-          onClick={onSwitchIdentity}
+          onClick={() => {
+            if (localIdentity && !window.confirm(t("identity.switchConfirm"))) return;
+            onSwitchIdentity();
+          }}
         >
           {t("identity.switch")}
         </button>
