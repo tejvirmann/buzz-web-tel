@@ -1,7 +1,7 @@
 export type AppLocale = "en" | "zh-CN";
 
 const messages = {
-  "app.title": { en: "Buzz Web", "zh-CN": "Buzz Web" },
+  "app.title": { en: "TEL Community", "zh-CN": "TEL Community" },
   "common.agent": { en: "Agent", "zh-CN": "Agent" },
   "common.cancel": { en: "Cancel", "zh-CN": "取消" },
   "common.channel": { en: "Channel", "zh-CN": "频道" },
@@ -758,8 +758,8 @@ const messages = {
     "zh-CN": "Relay 地址无效。",
   },
   "error.relayUrlRequired": {
-    en: "Configure a Relay address before starting Buzz Web.",
-    "zh-CN": "启动 Buzz Web 前必须配置 Relay 地址。",
+    en: "Configure a Relay address before starting TEL Community.",
+    "zh-CN": "启动 TEL Community 前必须配置 Relay 地址。",
   },
   "error.pubkeyInvalid": {
     en: "Enter a valid npub or 64-character hexadecimal public key.",
