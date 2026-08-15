@@ -44,6 +44,21 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
   }
 }
 
+/** All pubkeys that have an email on file (i.e. joined through /join), so the relay subscription can filter server-side instead of us discarding every non-mention message client-side. */
+async function fetchKnownPubkeys(): Promise<string[]> {
+  const pubkeys = new Set<string>();
+  let cursor = "0";
+  do {
+    const [nextCursor, keys] = await redis.scan(cursor, {
+      match: "buzz:email-for-pubkey:*",
+      count: 200,
+    });
+    for (const key of keys) pubkeys.add(key.replace("buzz:email-for-pubkey:", ""));
+    cursor = nextCursor;
+  } while (cursor !== "0");
+  return [...pubkeys];
+}
+
 function uniqueMentionedPubkeys(event: NostrEvent): string[] {
   const seen = new Set<string>();
   for (const tag of event.tags) {
@@ -89,7 +104,8 @@ async function notifyMention(pubkey: string, event: NostrEvent): Promise<void> {
 async function handleEvent(event: NostrEvent): Promise<void> {
   if (event.kind !== 9) return;
   const mentioned = uniqueMentionedPubkeys(event);
-  if (mentioned.length) console.log(`kind:9 event ${event.id} mentions [${mentioned.join(", ")}]`);
+  if (!mentioned.length) return; // shouldn't happen given the #p-filtered subscription, but be defensive
+  console.log(`kind:9 event ${event.id} from ${event.pubkey} mentions [${mentioned.join(", ")}]`);
   for (const pubkey of mentioned) {
     await notifyMention(pubkey, event).catch((error) => console.error("notifyMention failed", error));
   }
@@ -104,6 +120,12 @@ async function waitForChallenge(relay: Relay, timeoutMs = 5000): Promise<void> {
   }
 }
 
+const RESUBSCRIBE_INTERVAL_MS = 2 * 60 * 1000;
+// Overlap each fresh subscription with a bit of the previous window, in case
+// a long-lived subscription silently stops delivering events before we
+// notice and force a resubscribe (observed in practice - not just theoretical).
+const SUBSCRIBE_SINCE_OVERLAP_SECONDS = 150;
+
 async function watch(): Promise<void> {
   console.log(`connecting to ${RELAY_URL}`);
   const relay = await Relay.connect(RELAY_URL);
@@ -112,16 +134,40 @@ async function watch(): Promise<void> {
   // subscribing, or the relay rejects the subscription outright.
   await waitForChallenge(relay);
   await relay.auth(async (template) => finalizeEvent(template, OWNER_SECRET_KEY));
-  console.log("connected and authenticated; watching for kind:9 mentions");
+  console.log("connected and authenticated");
 
-  relay.subscribe([{ kinds: [9], since: Math.floor(Date.now() / 1000) }], {
-    onevent: (event) => {
-      void handleEvent(event as NostrEvent);
-    },
-  });
+  // Filter server-side by #p so the relay only ever sends events that
+  // actually mention someone we can notify, instead of every message in
+  // every channel. Refreshed periodically to pick up newly joined members.
+  let currentSub: ReturnType<typeof relay.subscribe> | null = null;
+
+  const resubscribe = async () => {
+    const pubkeys = await fetchKnownPubkeys();
+    currentSub?.close();
+    if (!pubkeys.length) {
+      console.log("no known members with an email on file yet; not subscribing");
+      currentSub = null;
+      return;
+    }
+    console.log(`(re)subscribing, watching for mentions of ${pubkeys.length} known member(s)`);
+    currentSub = relay.subscribe(
+      [
+        {
+          kinds: [9],
+          "#p": pubkeys,
+          since: Math.floor(Date.now() / 1000) - SUBSCRIBE_SINCE_OVERLAP_SECONDS,
+        },
+      ],
+      { onevent: (event) => void handleEvent(event as NostrEvent) },
+    );
+  };
+
+  await resubscribe();
+  const refreshTimer = setInterval(() => void resubscribe(), RESUBSCRIBE_INTERVAL_MS);
 
   await new Promise<void>((resolve) => {
     relay.onclose = () => {
+      clearInterval(refreshTimer);
       console.log("relay connection closed; reconnecting in 5s");
       resolve();
     };
