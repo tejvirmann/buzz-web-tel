@@ -21,6 +21,7 @@ import { uploadAvatar } from "@/shared/api/media-client";
 import type { RelayConnectionState } from "@/shared/api/nostr-types";
 import { getMentionEmailPref, setMentionEmailPref } from "@/shared/api/notification-prefs-client";
 import { t } from "@/shared/i18n";
+import { BUZZ_RELEASES_URL, resolveBuzzDownloadUrl } from "@/shared/lib/buzz-download";
 import { downloadIdentityBackup } from "@/shared/lib/identity-backup";
 import { createActiveIdentityBackup, getActiveSignerMode } from "@/shared/lib/nostr-signer";
 import { useTheme } from "@/shared/theme/ThemeProvider";
@@ -232,6 +233,10 @@ function IdentitySection({
   const [creatingBackup, setCreatingBackup] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const localIdentity = getActiveSignerMode() === "local";
+  const downloadQuery = useQuery({
+    queryKey: ["buzz-download-url"],
+    queryFn: resolveBuzzDownloadUrl,
+  });
 
   return (
     <div className="max-w-2xl">
@@ -324,6 +329,24 @@ function IdentitySection({
         {error ? <p className="mt-3 text-xs text-destructive">{error}</p> : null}
       </section>
 
+      {localIdentity ? (
+        <section className="mt-6 border-t pt-5">
+          <h3 className="text-sm font-semibold">{t("identity.otherDevices")}</h3>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            {t("identity.otherDevicesDescription")}
+          </p>
+          <a
+            className="mt-4 inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium hover:bg-foreground/5"
+            href={downloadQuery.data ?? BUZZ_RELEASES_URL}
+            rel="noreferrer"
+            target="_blank"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            {t("identity.downloadDesktop")}
+          </a>
+        </section>
+      ) : null}
+
       <div className="mt-8 border-t pt-5">
         <button
           className="h-9 rounded-md border px-3 text-sm hover:bg-foreground/5"
@@ -355,31 +378,21 @@ function NotificationsSection() {
   return (
     <div className="max-w-2xl">
       <h2 className="text-xl font-semibold">{t("settings.notifications")}</h2>
-      <div className="mt-6 flex items-center justify-between gap-4 border-y py-5">
+      <label className="mt-6 flex cursor-pointer items-start gap-3 border-y py-5 disabled:cursor-not-allowed">
+        <input
+          checked={enabled}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-primary disabled:opacity-40"
+          disabled={!interactive}
+          type="checkbox"
+          onChange={(event) => toggleMutation.mutate(event.target.checked)}
+        />
         <div>
           <h3 className="text-sm font-semibold">{t("notifications.mentionEmail")}</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             {t("notifications.mentionEmailDescription")}
           </p>
         </div>
-        <button
-          aria-checked={enabled}
-          aria-label={t("notifications.mentionEmail")}
-          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
-            enabled ? "bg-primary" : "bg-foreground/20"
-          }`}
-          disabled={!interactive}
-          role="switch"
-          type="button"
-          onClick={() => toggleMutation.mutate(!enabled)}
-        >
-          <span
-            className={`absolute top-0.5 h-5 w-5 rounded-full bg-background transition-transform ${
-              enabled ? "translate-x-[22px]" : "translate-x-0.5"
-            }`}
-          />
-        </button>
-      </div>
+      </label>
       {toggleMutation.isError ? (
         <p className="mt-3 text-xs text-destructive">{t("error.profileUpdate")}</p>
       ) : null}

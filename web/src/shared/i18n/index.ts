@@ -137,6 +137,13 @@ const messages = {
   "identity.createBackup": { en: "Create encrypted backup", "zh-CN": "创建加密备份" },
   "identity.createTitle": { en: "Create a Buzz identity", "zh-CN": "创建 Buzz 身份" },
   "identity.downloadBackup": { en: "Download backup", "zh-CN": "下载备份" },
+  "identity.otherDevices": { en: "Use on desktop", "zh-CN": "在桌面端使用" },
+  "identity.otherDevicesDescription": {
+    en: 'To sign into this same account in the Buzz desktop app, create a backup above, then choose "Restore" in the desktop app and paste in the backup and its passphrase.',
+    "zh-CN":
+      "要在 Buzz 桌面应用中登录同一账号，请先在上方创建备份，然后在桌面应用中选择“恢复”，粘贴备份内容及其口令。",
+  },
+  "identity.downloadDesktop": { en: "Download Buzz for desktop", "zh-CN": "下载 Buzz 桌面版" },
   "identity.extensionBackup": {
     en: "This identity is managed by the browser extension. Back it up from the extension.",
     "zh-CN": "此身份由浏览器扩展管理，请在扩展中完成备份。",

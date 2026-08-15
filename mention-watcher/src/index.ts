@@ -57,13 +57,22 @@ function uniqueMentionedPubkeys(event: NostrEvent): string[] {
 async function notifyMention(pubkey: string, event: NostrEvent): Promise<void> {
   const cooldownKey = `buzz:mention-cooldown:${pubkey}`;
   const gotSlot = await redis.set(cooldownKey, 1, { nx: true, ex: COOLDOWN_SECONDS });
-  if (!gotSlot) return; // already notified this person recently; avoid spamming a fast conversation
+  if (!gotSlot) {
+    console.log(`mention ${pubkey}: skipped (cooldown active)`);
+    return;
+  }
 
   const disabled = await redis.get(`buzz:notify-off:${pubkey}`);
-  if (disabled) return;
+  if (disabled) {
+    console.log(`mention ${pubkey}: skipped (notifications off)`);
+    return;
+  }
 
   const email = await redis.get<string>(`buzz:email-for-pubkey:${pubkey}`);
-  if (!email) return; // no email on file for this identity (e.g. never went through the email join flow)
+  if (!email) {
+    console.log(`mention ${pubkey}: skipped (no email on file)`);
+    return;
+  }
 
   const snippet = escapeHtml(event.content.slice(0, 300));
   const unsubscribeUrl = `${SITE_URL}/?disableMentionEmails=1`;
@@ -74,11 +83,14 @@ async function notifyMention(pubkey: string, event: NostrEvent): Promise<void> {
       `<p><a href="${SITE_URL}/">Open Buzz</a></p>` +
       `<p style="color:#888;font-size:12px">Don't want these? <a href="${unsubscribeUrl}">Turn off mention emails</a>.</p>`,
   );
+  console.log(`mention ${pubkey}: emailed ${email}`);
 }
 
 async function handleEvent(event: NostrEvent): Promise<void> {
   if (event.kind !== 9) return;
-  for (const pubkey of uniqueMentionedPubkeys(event)) {
+  const mentioned = uniqueMentionedPubkeys(event);
+  if (mentioned.length) console.log(`kind:9 event ${event.id} mentions [${mentioned.join(", ")}]`);
+  for (const pubkey of mentioned) {
     await notifyMention(pubkey, event).catch((error) => console.error("notifyMention failed", error));
   }
 }
