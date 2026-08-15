@@ -23,7 +23,6 @@ export function NewDmView({
   const options = useMemo(() => {
     const term = query.trim().toLocaleLowerCase();
     return Object.values(profiles)
-      .filter((profile) => profile.pubkey !== currentPubkey)
       .filter(
         (profile) =>
           !term ||
@@ -35,7 +34,7 @@ export function NewDmView({
           Number(right.isAgent) - Number(left.isAgent) ||
           left.name.localeCompare(right.name, getLocale()),
       );
-  }, [currentPubkey, profiles, query]);
+  }, [profiles, query]);
 
   const open = async (profile: UserProfile) => {
     setOpening(profile.pubkey);
@@ -92,7 +91,10 @@ export function NewDmView({
             >
               <Avatar profile={profile} relayUrl={relayUrl} size={32} />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">{profile.name}</div>
+                <div className="truncate text-sm font-medium">
+                  {profile.name}
+                  {profile.pubkey === currentPubkey ? ` ${t("dm.you")}` : ""}
+                </div>
                 <div className="truncate text-xs text-muted-foreground">
                   {profile.isAgent ? t("member.remoteAgent") : profile.about}
                 </div>
