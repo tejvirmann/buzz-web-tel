@@ -1,12 +1,12 @@
 {
-  "name": "Buzz Web",
-  "short_name": "Buzz",
-  "description": "Private collaboration on your Buzz relay",
+  "name": "TEL Madison Buzz",
+  "short_name": "TEL Madison",
+  "description": "Private collaboration on TEL Madison's Buzz relay",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#171717",
-  "theme_color": "#e6e6b6",
+  "theme_color": "#C5050C",
   "icons": [
     {
       "src": "./app-icon.png",
