@@ -8,6 +8,10 @@
 *.p12
 *.pfx
 
+# Local reference material (screenshots, logo source files) - not app assets
+/logo/
+/ui/
+
 # Editor and operating-system files
 .DS_Store
 .idea/

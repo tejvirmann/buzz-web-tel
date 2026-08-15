@@ -20,6 +20,8 @@ export type RuntimeConfig = {
   features: RelayFeatureState;
   demoMode: boolean;
   branding: BrandingConfig;
+  /** Channel names (exact, case-insensitive) every new member is auto-joined to after claiming their invite. */
+  defaultChannels: string[];
 };
 
 function validPubkey(value: unknown): value is string {
@@ -148,6 +150,9 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
     features: parseRelayFeatures(raw.features),
     demoMode: raw.demoMode === true && import.meta.env.VITE_ENABLE_DEMO === "true",
     branding,
+    defaultChannels: Array.isArray(raw.defaultChannels)
+      ? raw.defaultChannels.filter((name): name is string => typeof name === "string")
+      : [],
   };
 }
 

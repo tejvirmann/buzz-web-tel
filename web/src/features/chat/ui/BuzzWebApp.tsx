@@ -44,7 +44,6 @@ import { loadRuntimeConfig, type RuntimeConfig } from "@/shared/config/runtime-c
 import { resolveRelayFeatures } from "@/shared/features/relay-features";
 import { t } from "@/shared/i18n";
 import {
-  DEFAULT_CHANNEL_NAMES,
   PENDING_DEFAULT_CHANNELS_KEY,
   PENDING_PROFILE_NAME_KEY,
 } from "@/shared/lib/pending-profile";
@@ -186,17 +185,18 @@ function Workspace({
   }, [connected, demo]);
 
   useEffect(() => {
-    if (demo || !connected) return;
+    if (demo || !connected || !config.defaultChannels.length) return;
     if (!window.localStorage.getItem(PENDING_DEFAULT_CHANNELS_KEY)) return;
     if (!session.discoveredChannels.length) return; // wait for the channel list to actually load
     window.localStorage.removeItem(PENDING_DEFAULT_CHANNELS_KEY);
+    const defaultNames = config.defaultChannels.map((name) => name.toLowerCase());
     const targets = session.discoveredChannels.filter(
-      (channel) => !channel.isMember && DEFAULT_CHANNEL_NAMES.includes(channel.name.toLowerCase()),
+      (channel) => !channel.isMember && defaultNames.includes(channel.name.toLowerCase()),
     );
     void Promise.all(targets.map((channel) => session.joinChannel(channel.id))).catch(
       () => undefined,
     );
-  }, [connected, demo, session]);
+  }, [config.defaultChannels, connected, demo, session]);
 
   useEffect(() => {
     const channelId = state.selectedChannelId;
