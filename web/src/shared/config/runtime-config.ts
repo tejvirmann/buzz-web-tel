@@ -33,7 +33,10 @@ function validHexColor(value: unknown): value is string {
 function parseBranding(raw: unknown): BrandingConfig {
   const branding = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
   return {
-    logoUrl: typeof branding.logoUrl === "string" && branding.logoUrl.trim() ? branding.logoUrl.trim() : null,
+    logoUrl:
+      typeof branding.logoUrl === "string" && branding.logoUrl.trim()
+        ? branding.logoUrl.trim()
+        : null,
     primaryColor: validHexColor(branding.primaryColor) ? branding.primaryColor.trim() : null,
   };
 }

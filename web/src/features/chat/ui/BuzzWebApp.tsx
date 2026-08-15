@@ -38,10 +38,12 @@ import { InboxView } from "@/features/inbox/ui/InboxView";
 import { useInbox } from "@/features/inbox/use-inbox";
 import { ReposPanel } from "@/features/repos/ui/ReposPanel";
 import { clearMediaObjectUrls } from "@/shared/api/media-client";
+import { setMentionEmailPref } from "@/shared/api/notification-prefs-client";
 import { BuzzRelayClient } from "@/shared/api/relay-client";
 import { loadRuntimeConfig, type RuntimeConfig } from "@/shared/config/runtime-config";
 import { resolveRelayFeatures } from "@/shared/features/relay-features";
 import { t } from "@/shared/i18n";
+import { PENDING_PROFILE_NAME_KEY } from "@/shared/lib/pending-profile";
 import { useRightPanelWidth } from "@/shared/ui/right-panel-sizing";
 
 type DialogName = "browse" | "search" | "invite" | null;
@@ -157,6 +159,27 @@ function Workspace({
   useEffect(() => {
     if (userState.syncError) toast.error(userState.syncError);
   }, [userState.syncError]);
+
+  useEffect(() => {
+    if (demo || !connected) return;
+    const pendingName = window.localStorage.getItem(PENDING_PROFILE_NAME_KEY);
+    if (!pendingName) return;
+    window.localStorage.removeItem(PENDING_PROFILE_NAME_KEY);
+    void session
+      .updateProfile({ name: pendingName, about: "", picture: "" })
+      .catch(() => undefined);
+  }, [connected, demo, session]);
+
+  useEffect(() => {
+    if (demo || !connected) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("disableMentionEmails") !== "1") return;
+    url.searchParams.delete("disableMentionEmails");
+    window.history.replaceState(null, "", url.toString());
+    void setMentionEmailPref(false)
+      .then(() => toast.success(t("notifications.unsubscribed")))
+      .catch(() => undefined);
+  }, [connected, demo]);
 
   useEffect(() => {
     const channelId = state.selectedChannelId;

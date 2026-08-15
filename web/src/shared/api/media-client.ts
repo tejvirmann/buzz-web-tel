@@ -1,5 +1,5 @@
 import type { AttachmentDescriptor } from "@/features/chat/lib/chat-types";
-import { prepareAttachmentUpload } from "@/shared/api/media-sanitizer";
+import { prepareAttachmentUpload, prepareAvatarUpload } from "@/shared/api/media-sanitizer";
 import { relayHttpOrigin } from "@/shared/config/runtime-config";
 import { t } from "@/shared/i18n";
 import { signNostrEvent } from "@/shared/lib/nostr-signer";
@@ -38,12 +38,12 @@ function toHex(buffer: ArrayBuffer): string {
   return [...new Uint8Array(buffer)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-export async function uploadAttachment(
-  file: File,
+async function putToMediaServer(
+  bytes: ArrayBuffer,
+  mimeType: string,
   relayUrl: string,
 ): Promise<AttachmentDescriptor> {
   const origin = relayHttpOrigin(relayUrl);
-  const { bytes, mimeType } = await prepareAttachmentUpload(file);
   const sha256 = toHex(await crypto.subtle.digest("SHA-256", bytes));
   const server = new URL(origin).host;
   const authorization = await authorizationHeader("upload", server, sha256);
@@ -62,8 +62,23 @@ export async function uploadAttachment(
       `${t("error.mediaUploadStatus", { status: response.status })}${detail ? `: ${detail}` : ""}`,
     );
   }
-  const descriptor = (await response.json()) as AttachmentDescriptor;
+  return (await response.json()) as AttachmentDescriptor;
+}
+
+export async function uploadAttachment(
+  file: File,
+  relayUrl: string,
+): Promise<AttachmentDescriptor> {
+  const { bytes, mimeType } = await prepareAttachmentUpload(file);
+  const descriptor = await putToMediaServer(bytes, mimeType, relayUrl);
   return { ...descriptor, filename: file.name };
+}
+
+/** Downscales the dropped image to a small fixed size before uploading (see prepareAvatarUpload). */
+export async function uploadAvatar(file: File, relayUrl: string): Promise<string> {
+  const { bytes, mimeType } = await prepareAvatarUpload(file);
+  const descriptor = await putToMediaServer(bytes, mimeType, relayUrl);
+  return descriptor.url;
 }
 
 const mediaObjectUrls = new Map<string, Promise<string>>();

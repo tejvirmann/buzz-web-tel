@@ -6,6 +6,8 @@
 
 import { Route as rootRouteImport } from "./routes/root";
 import { Route as indexRouteImport } from "./routes/index";
+import { Route as claimRouteImport } from "./routes/claim";
+import { Route as joinRouteImport } from "./routes/join";
 import { Route as reposRouteImport } from "./routes/repos";
 import { Route as inviteDotcodeRouteImport } from "./routes/invite.$code";
 import { Route as reposDotrepoIdRouteImport } from "./routes/repos.$repoId";
@@ -14,6 +16,16 @@ import { Route as reposDotrepoIdDotblobDotsplatRouteImport } from "./routes/repo
 const indexRoute = indexRouteImport.update({
   id: "/",
   path: "/",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const claimRoute = claimRouteImport.update({
+  id: "/claim",
+  path: "/claim",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const joinRoute = joinRouteImport.update({
+  id: "/join",
+  path: "/join",
   getParentRoute: () => rootRouteImport,
 } as any);
 const reposRoute = reposRouteImport.update({
@@ -40,6 +52,8 @@ const reposDotrepoIdDotblobDotsplatRoute =
 
 export interface FileRoutesByFullPath {
   "/": typeof indexRoute;
+  "/claim": typeof claimRoute;
+  "/join": typeof joinRoute;
   "/repos": typeof reposRoute;
   "/invite/$code": typeof inviteDotcodeRoute;
   "/repos/$repoId": typeof reposDotrepoIdRoute;
@@ -47,6 +61,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   "/": typeof indexRoute;
+  "/claim": typeof claimRoute;
+  "/join": typeof joinRoute;
   "/repos": typeof reposRoute;
   "/invite/$code": typeof inviteDotcodeRoute;
   "/repos/$repoId": typeof reposDotrepoIdRoute;
@@ -55,6 +71,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof indexRoute;
+  "/claim": typeof claimRoute;
+  "/join": typeof joinRoute;
   "/repos": typeof reposRoute;
   "/invite/$code": typeof inviteDotcodeRoute;
   "/repos/$repoId": typeof reposDotrepoIdRoute;
@@ -64,6 +82,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | "/"
+    | "/claim"
+    | "/join"
     | "/repos"
     | "/invite/$code"
     | "/repos/$repoId"
@@ -71,6 +91,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo;
   to:
     | "/"
+    | "/claim"
+    | "/join"
     | "/repos"
     | "/invite/$code"
     | "/repos/$repoId"
@@ -78,6 +100,8 @@ export interface FileRouteTypes {
   id:
     | "__root__"
     | "/"
+    | "/claim"
+    | "/join"
     | "/repos"
     | "/invite/$code"
     | "/repos/$repoId"
@@ -86,6 +110,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   indexRoute: typeof indexRoute;
+  claimRoute: typeof claimRoute;
+  joinRoute: typeof joinRoute;
   reposRoute: typeof reposRoute;
   inviteDotcodeRoute: typeof inviteDotcodeRoute;
   reposDotrepoIdRoute: typeof reposDotrepoIdRoute;
@@ -99,6 +125,20 @@ declare module "@tanstack/react-router" {
       path: "/";
       fullPath: "/";
       preLoaderRoute: typeof indexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/claim": {
+      id: "/claim";
+      path: "/claim";
+      fullPath: "/claim";
+      preLoaderRoute: typeof claimRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/join": {
+      id: "/join";
+      path: "/join";
+      fullPath: "/join";
+      preLoaderRoute: typeof joinRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/repos": {
@@ -134,6 +174,8 @@ declare module "@tanstack/react-router" {
 
 const rootRouteChildren: RootRouteChildren = {
   indexRoute: indexRoute,
+  claimRoute: claimRoute,
+  joinRoute: joinRoute,
   reposRoute: reposRoute,
   inviteDotcodeRoute: inviteDotcodeRoute,
   reposDotrepoIdRoute: reposDotrepoIdRoute,

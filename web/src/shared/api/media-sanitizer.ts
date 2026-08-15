@@ -513,6 +513,62 @@ async function sanitizeStaticImage(bytes: Uint8Array, mimeType: SupportedImageMi
   }
 }
 
+const AVATAR_MAX_INPUT_BYTES = 10 * 1024 * 1024;
+const AVATAR_OUTPUT_DIMENSION = 512;
+
+/**
+ * Downscales any dropped image to a small fixed-size square before upload,
+ * so a huge photo never turns into a huge avatar every member's client has
+ * to decode and hold in memory just to render a profile picture.
+ */
+export async function prepareAvatarUpload(file: File): Promise<PreparedUpload> {
+  if (file.size > AVATAR_MAX_INPUT_BYTES) {
+    throw new Error(t("error.avatarTooLarge"));
+  }
+  const original = await file.arrayBuffer();
+  const bytes = new Uint8Array(original);
+  const imageMime = detectImageMime(bytes);
+  if (!imageMime) throw new Error(t("error.avatarUnsupported"));
+
+  const decoded = await decodeImage(new Blob([toArrayBuffer(bytes)], { type: imageMime }));
+  try {
+    if (
+      decoded.width <= 0 ||
+      decoded.height <= 0 ||
+      decoded.width * decoded.height > MAX_IMAGE_PIXELS
+    ) {
+      throw new Error(t("error.avatarUnsupported"));
+    }
+    const cropSize = Math.min(decoded.width, decoded.height);
+    const sourceX = (decoded.width - cropSize) / 2;
+    const sourceY = (decoded.height - cropSize) / 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = AVATAR_OUTPUT_DIMENSION;
+    canvas.height = AVATAR_OUTPUT_DIMENSION;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("canvas unavailable");
+    context.drawImage(
+      decoded.source,
+      sourceX,
+      sourceY,
+      cropSize,
+      cropSize,
+      0,
+      0,
+      AVATAR_OUTPUT_DIMENSION,
+      AVATAR_OUTPUT_DIMENSION,
+    );
+    const encoded = await canvasBlob(canvas, "image/jpeg");
+    const output = new Uint8Array(await encoded.arrayBuffer());
+    if (detectImageMime(output) !== "image/jpeg") throw new Error("unsupported canvas output");
+    return { bytes: toArrayBuffer(scrubJpeg(output)), mimeType: "image/jpeg" };
+  } catch {
+    throw new Error(t("error.avatarUnsupported"));
+  } finally {
+    decoded.close();
+  }
+}
+
 export async function prepareAttachmentUpload(file: File): Promise<PreparedUpload> {
   const original = await file.arrayBuffer();
   const bytes = new Uint8Array(original);

@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 import buzzAppIcon from "@/assets/app-icon@3x.png";
 import type { RuntimeConfig } from "@/shared/config/runtime-config";
 import { t } from "@/shared/i18n";
+import { forgetAutoUnlock, tryAutoUnlock } from "@/shared/lib/auto-session";
 import {
   deleteVault,
   listVaultMetadata,
@@ -76,7 +77,14 @@ export function IdentityGate({
 
   useEffect(() => {
     if (config.demoMode) return;
-    void reloadVaults()
+    void tryAutoUnlock()
+      .then((autoPubkey) => {
+        if (autoPubkey) {
+          setPubkey(autoPubkey);
+          return;
+        }
+        return reloadVaults();
+      })
       .catch((vaultError) =>
         setError(vaultError instanceof Error ? vaultError.message : t("error.vaultRead")),
       )
@@ -89,6 +97,7 @@ export function IdentityGate({
       demo: config.demoMode,
       signOut: () => {
         clearActiveSigner();
+        forgetAutoUnlock();
         setPubkey(null);
         setPassphrase("");
         setConfirmPassphrase("");

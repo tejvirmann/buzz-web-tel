@@ -238,6 +238,38 @@ const messages = {
     "zh-CN": "此邀请无效，请检查链接或申请新的邀请。",
   },
   "invite.invitedTo": { en: "You're invited to", "zh-CN": "你受邀加入" },
+  "join.title": { en: "Join {community}", "zh-CN": "加入 {community}" },
+  "join.subtitle": {
+    en: "Enter your email and we'll send you a link to join.",
+    "zh-CN": "输入你的邮箱，我们会给你发送加入链接。",
+  },
+  "join.emailLabel": { en: "Email", "zh-CN": "邮箱" },
+  "join.submit": { en: "Send me an invite", "zh-CN": "发送邀请给我" },
+  "join.sending": { en: "Sending...", "zh-CN": "发送中..." },
+  "join.sentTitle": { en: "Check your inbox", "zh-CN": "请查看你的邮箱" },
+  "join.sentBody": {
+    en: "We sent a link to {email}. Click it to finish joining.",
+    "zh-CN": "我们已发送链接到 {email}。点击链接完成加入。",
+  },
+  "join.error": {
+    en: "Something went wrong sending that invite. Try again in a moment.",
+    "zh-CN": "发送邀请时出了点问题，请稍后重试。",
+  },
+  "claim.loading": { en: "Loading your invite...", "zh-CN": "正在加载你的邀请..." },
+  "claim.invalidTitle": { en: "This link isn't valid", "zh-CN": "此链接无效" },
+  "claim.invalidBody": {
+    en: "It may have expired. Go back and request a new invite.",
+    "zh-CN": "链接可能已过期，请返回重新申请邀请。",
+  },
+  "claim.backToJoin": { en: "Back to join page", "zh-CN": "返回加入页面" },
+  "claim.nameTitle": { en: "What's your name?", "zh-CN": "你叫什么名字？" },
+  "claim.nameLabel": { en: "Your name", "zh-CN": "你的名字" },
+  "claim.nameSubmit": { en: "Continue", "zh-CN": "继续" },
+  "claim.joining": { en: "Setting things up...", "zh-CN": "正在为你设置..." },
+  "claim.error": {
+    en: "Something went wrong. Try opening the link again.",
+    "zh-CN": "出了点问题，请重新打开链接。",
+  },
   "invite.inviteLink": { en: "Invite link", "zh-CN": "邀请链接" },
   "invite.joinBrowser": { en: "Join in browser", "zh-CN": "在浏览器中加入" },
   "invite.joining": { en: "Joining…", "zh-CN": "正在加入…" },
@@ -457,10 +489,30 @@ const messages = {
   },
   "profile.save": { en: "Save profile", "zh-CN": "保存 Profile" },
   "profile.title": { en: "Profile", "zh-CN": "Profile" },
+  "profile.dropAvatar": {
+    en: "Drag an image here, or click to choose one",
+    "zh-CN": "将图片拖到此处，或点击选择图片",
+  },
+  "profile.dropAvatarUploading": { en: "Uploading...", "zh-CN": "正在上传..." },
+  "profile.orPasteUrl": { en: "or paste an image URL", "zh-CN": "或粘贴图片地址" },
   "settings.back": { en: "Back", "zh-CN": "返回" },
   "settings.editProfile": { en: "Edit profile", "zh-CN": "编辑 Profile" },
   "settings.identity": { en: "Identity", "zh-CN": "身份" },
   "settings.invites": { en: "Invites", "zh-CN": "邀请" },
+  "settings.notifications": { en: "Notifications", "zh-CN": "通知" },
+  "notifications.mentionEmail": {
+    en: "Email me when I'm @-mentioned",
+    "zh-CN": "被 @ 提及时发邮件通知我",
+  },
+  "notifications.unsubscribed": {
+    en: "You won't get emailed for @-mentions anymore.",
+    "zh-CN": "你将不再收到 @ 提及的邮件通知。",
+  },
+  "notifications.mentionEmailDescription": {
+    en: "We'll email you when someone @-mentions you, with a link back to the app. At most one email every few minutes, even in a fast-moving conversation.",
+    "zh-CN":
+      "有人 @ 你时，我们会发邮件通知你，并附带返回应用的链接。即使对话很活跃，也最多每几分钟发送一封。",
+  },
   "settings.invitesUnavailable": {
     en: "Only Relay owners and admins can invite people.",
     "zh-CN": "只有 Relay owner/admin 可以邀请成员。",
@@ -531,6 +583,15 @@ const messages = {
   "workspace.toolPanel": { en: "{name} panel", "zh-CN": "{name}面板" },
   "workspace.typing": { en: "{names} typing…", "zh-CN": "{names} 正在输入…" },
   "error.attachmentUpload": { en: "Attachment upload failed.", "zh-CN": "附件上传失败。" },
+  "error.avatarTooLarge": {
+    en: "That image file is too large. Try one under 10 MB.",
+    "zh-CN": "图片文件过大，请使用小于 10 MB 的图片。",
+  },
+  "error.avatarUnsupported": {
+    en: "We couldn't use this image. Try a JPEG, PNG, GIF, or WebP file.",
+    "zh-CN": "无法使用此图片，请使用 JPEG、PNG、GIF 或 WebP 格式。",
+  },
+  "error.avatarUpload": { en: "Avatar upload failed.", "zh-CN": "头像上传失败。" },
   "error.attachmentImagePrepare": {
     en: "We couldn't prepare this image for upload.",
     "zh-CN": "无法处理此图片以上传。",
