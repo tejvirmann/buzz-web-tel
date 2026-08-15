@@ -1,0 +1,19 @@
+{
+  "name": "buzz-mention-watcher",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.38.2",
+    "nostr-tools": "^2.23.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "~6.0.0"
+  }
+}

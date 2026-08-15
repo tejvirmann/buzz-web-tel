@@ -67,6 +67,7 @@ function ChannelUnreadDot({ channelId }: { channelId: string }) {
 
 export function AppNavigation({
   communityName,
+  brandLogoUrl,
   relayUrl,
   channels,
   selectedChannelId,
@@ -98,6 +99,7 @@ export function AppNavigation({
   onResize,
 }: {
   communityName: string;
+  brandLogoUrl?: string | null;
   relayUrl: string;
   channels: BuzzChannel[];
   selectedChannelId: string | null;
@@ -175,7 +177,11 @@ export function AppNavigation({
   return (
     <>
       <nav className="hidden w-11 shrink-0 flex-col items-center border-r border-black/5 py-2 md:flex dark:border-white/5">
-        <img alt="Buzz" className="h-8 w-8 rounded-lg" src={buzzAppIcon} />
+        <img
+          alt={communityName}
+          className="h-8 w-8 rounded-lg object-cover"
+          src={brandLogoUrl ?? buzzAppIcon}
+        />
         <button
           aria-label={canManageMembers ? t("invite.title") : t("nav.newDm")}
           className="mt-2 flex h-8 w-8 items-center justify-center rounded-full bg-background/60 text-foreground/70 transition-colors hover:bg-background/90"

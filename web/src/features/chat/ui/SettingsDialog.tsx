@@ -1,5 +1,7 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Bell,
   Download,
   KeyRound,
   LoaderCircle,
@@ -15,20 +17,88 @@ import type { UserProfile } from "@/features/chat/lib/chat-types";
 import { connectionStateLabel } from "@/features/chat/lib/connection-state";
 import { DialogFrame } from "@/features/chat/ui/AppDialogs";
 import { Avatar } from "@/features/chat/ui/Avatar";
+import { uploadAvatar } from "@/shared/api/media-client";
 import type { RelayConnectionState } from "@/shared/api/nostr-types";
+import { getMentionEmailPref, setMentionEmailPref } from "@/shared/api/notification-prefs-client";
 import { t } from "@/shared/i18n";
 import { downloadIdentityBackup } from "@/shared/lib/identity-backup";
 import { createActiveIdentityBackup, getActiveSignerMode } from "@/shared/lib/nostr-signer";
 import { useTheme } from "@/shared/theme/ThemeProvider";
 
-export type SettingsSection = "appearance" | "identity" | "invites" | "profile";
+export type SettingsSection = "appearance" | "identity" | "invites" | "notifications" | "profile";
+
+function AvatarDropzone({
+  picture,
+  relayUrl,
+  onUploaded,
+  onError,
+}: {
+  picture: string;
+  relayUrl: string;
+  onUploaded: (url: string) => void;
+  onError: (message: string) => void;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    void uploadAvatar(file, relayUrl)
+      .then(onUploaded)
+      .catch((uploadError) =>
+        onError(uploadError instanceof Error ? uploadError.message : t("error.avatarUpload")),
+      )
+      .finally(() => setUploading(false));
+  };
+
+  return (
+    <label
+      className={`flex h-24 cursor-pointer items-center gap-4 rounded-md border border-dashed px-4 text-xs text-muted-foreground transition-colors ${
+        dragging ? "border-primary bg-primary/5" : "hover:bg-foreground/5"
+      }`}
+      onDragLeave={() => setDragging(false)}
+      onDragOver={(event) => {
+        event.preventDefault();
+        setDragging(true);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragging(false);
+        handleFile(event.dataTransfer.files[0]);
+      }}
+    >
+      {picture ? (
+        <img alt="" className="h-14 w-14 shrink-0 rounded-full object-cover" src={picture} />
+      ) : (
+        <UserRound className="h-8 w-8 shrink-0" />
+      )}
+      <span className="flex items-center gap-2">
+        {uploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+        {uploading ? t("profile.dropAvatarUploading") : t("profile.dropAvatar")}
+      </span>
+      <input
+        accept="image/png,image/jpeg,image/gif,image/webp"
+        className="sr-only"
+        disabled={uploading}
+        type="file"
+        onChange={(event) => {
+          handleFile(event.target.files?.[0]);
+          event.target.value = "";
+        }}
+      />
+    </label>
+  );
+}
 
 function ProfileEditor({
   profile,
+  relayUrl,
   onClose,
   onUpdate,
 }: {
   profile: UserProfile;
+  relayUrl: string;
   onClose: () => void;
   onUpdate: (input: { name: string; about: string; picture: string }) => Promise<void>;
 }) {
@@ -73,16 +143,27 @@ function ProfileEditor({
             onChange={(event) => setAbout(event.target.value)}
           />
         </label>
-        <label className="block text-xs font-medium">
-          {t("profile.picture")}
+        <div>
+          <span className="block text-xs font-medium">{t("profile.picture")}</span>
+          <div className="mt-1.5">
+            <AvatarDropzone
+              picture={picture}
+              relayUrl={relayUrl}
+              onError={setError}
+              onUploaded={(url) => {
+                setPicture(url);
+                setError(null);
+              }}
+            />
+          </div>
           <input
-            className="mt-1.5 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none"
-            placeholder={t("profile.picturePlaceholder")}
+            className="mt-2 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none"
+            placeholder={t("profile.orPasteUrl")}
             type="url"
             value={picture}
             onChange={(event) => setPicture(event.target.value)}
           />
-        </label>
+        </div>
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
         <div className="flex justify-end gap-2 border-t pt-4">
           <button
@@ -256,6 +337,53 @@ function IdentitySection({
   );
 }
 
+function NotificationsSection() {
+  const queryClient = useQueryClient();
+  const prefQuery = useQuery({
+    queryKey: ["mention-email-pref"],
+    queryFn: getMentionEmailPref,
+  });
+  const toggleMutation = useMutation({
+    mutationFn: setMentionEmailPref,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["mention-email-pref"] }),
+  });
+  const enabled = prefQuery.data ?? null;
+
+  return (
+    <div className="max-w-2xl">
+      <h2 className="text-xl font-semibold">{t("settings.notifications")}</h2>
+      <div className="mt-6 flex items-center justify-between gap-4 border-y py-5">
+        <div>
+          <h3 className="text-sm font-semibold">{t("notifications.mentionEmail")}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("notifications.mentionEmailDescription")}
+          </p>
+        </div>
+        <button
+          aria-checked={enabled ?? false}
+          aria-label={t("notifications.mentionEmail")}
+          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
+            enabled ? "bg-primary" : "bg-foreground/20"
+          }`}
+          disabled={enabled === null || toggleMutation.isPending}
+          role="switch"
+          type="button"
+          onClick={() => toggleMutation.mutate(!enabled)}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-background transition-transform ${
+              enabled ? "translate-x-[22px]" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </div>
+      {toggleMutation.isError ? (
+        <p className="mt-3 text-xs text-destructive">{t("error.profileUpdate")}</p>
+      ) : null}
+    </div>
+  );
+}
+
 export function SettingsView({
   relayUrl,
   pubkey,
@@ -282,6 +410,7 @@ export function SettingsView({
   const sections = [
     { id: "profile", label: t("profile.title"), icon: UserRound },
     { id: "appearance", label: t("dialog.appearance"), icon: Monitor },
+    { id: "notifications", label: t("settings.notifications"), icon: Bell },
     { id: "invites", label: t("settings.invites"), icon: UserRoundPlus },
     { id: "identity", label: t("settings.identity"), icon: KeyRound },
   ] as const;
@@ -344,6 +473,8 @@ export function SettingsView({
           </div>
         ) : section === "appearance" ? (
           <AppearanceSection />
+        ) : section === "notifications" ? (
+          <NotificationsSection />
         ) : section === "invites" ? (
           <div className="max-w-2xl">
             <h2 className="text-xl font-semibold">{t("settings.invites")}</h2>
@@ -375,6 +506,7 @@ export function SettingsView({
       {editingProfile ? (
         <ProfileEditor
           profile={profile}
+          relayUrl={relayUrl}
           onClose={() => setEditingProfile(false)}
           onUpdate={onUpdateProfile}
         />

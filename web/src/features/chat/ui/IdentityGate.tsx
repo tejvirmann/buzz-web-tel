@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 import buzzAppIcon from "@/assets/app-icon@3x.png";
 import type { RuntimeConfig } from "@/shared/config/runtime-config";
 import { t } from "@/shared/i18n";
+import { forgetAutoUnlock, tryAutoUnlock } from "@/shared/lib/auto-session";
 import {
   deleteVault,
   listVaultMetadata,
@@ -76,7 +77,14 @@ export function IdentityGate({
 
   useEffect(() => {
     if (config.demoMode) return;
-    void reloadVaults()
+    void tryAutoUnlock()
+      .then((autoPubkey) => {
+        if (autoPubkey) {
+          setPubkey(autoPubkey);
+          return;
+        }
+        return reloadVaults();
+      })
       .catch((vaultError) =>
         setError(vaultError instanceof Error ? vaultError.message : t("error.vaultRead")),
       )
@@ -89,6 +97,7 @@ export function IdentityGate({
       demo: config.demoMode,
       signOut: () => {
         clearActiveSigner();
+        forgetAutoUnlock();
         setPubkey(null);
         setPassphrase("");
         setConfirmPassphrase("");
@@ -133,7 +142,11 @@ export function IdentityGate({
     <div className="buzz-app-surface flex min-h-dvh items-center justify-center p-4">
       <main className="w-full max-w-[440px] overflow-hidden rounded-lg border border-black/10 bg-background/95 shadow-2xl backdrop-blur-xl dark:border-white/10">
         <div className="border-b px-6 pb-5 pt-7 text-center">
-          <img alt="Buzz" className="mx-auto h-14 w-14 rounded-[13px]" src={buzzAppIcon} />
+          <img
+            alt={config.communityName}
+            className="mx-auto h-14 w-14 rounded-[13px] object-cover"
+            src={config.branding.logoUrl ?? buzzAppIcon}
+          />
           <h1 className="mt-4 text-xl font-semibold">{config.communityName}</h1>
           <p className="mt-1 truncate text-xs text-muted-foreground">{config.relayUrl}</p>
         </div>

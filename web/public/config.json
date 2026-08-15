@@ -5,5 +5,9 @@
     "projects": false,
     "forum": false
   },
-  "agents": []
+  "agents": [],
+  "branding": {
+    "logoUrl": null,
+    "primaryColor": "#C5050C"
+  }
 }

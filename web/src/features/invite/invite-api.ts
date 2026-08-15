@@ -46,3 +46,37 @@ export async function claimInviteInBrowser(
     role: String(json.role),
   };
 }
+
+/**
+ * Same as claimInviteInBrowser, but signs with whatever signer is currently
+ * active (a freshly generated local key, in the hidden-key join flow)
+ * instead of requiring a NIP-07 browser extension.
+ */
+export async function claimInviteAsActiveSigner(
+  relayUrl: string,
+  code: string,
+): Promise<BrowserInviteClaim> {
+  const url = `${relayHttpOrigin(relayUrl)}/api/invites/claim`;
+  const body = JSON.stringify({ code });
+  const authorization = await makeNip98AuthHeader(url, "POST", { body });
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: authorization,
+      "Content-Type": "application/json",
+    },
+    body,
+    signal: AbortSignal.timeout(INVITE_REQUEST_TIMEOUT_MS),
+  });
+  const json = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    const message = typeof json.error === "string" ? json.error : `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+  return {
+    status: json.status as BrowserInviteClaim["status"],
+    communityId: String(json.community_id),
+    host: String(json.host),
+    role: String(json.role),
+  };
+}
