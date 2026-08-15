@@ -118,6 +118,7 @@ const messages = {
   "dm.close": { en: "Close new message", "zh-CN": "关闭新私聊" },
   "dm.empty": { en: "No matching members", "zh-CN": "没有匹配的成员" },
   "dm.to": { en: "To:", "zh-CN": "收件人：" },
+  "dm.you": { en: "(you)", "zh-CN": "（你）" },
   "field.address": { en: "Address", "zh-CN": "地址" },
   "field.publicKey": { en: "Public key", "zh-CN": "公钥" },
   "field.status": { en: "Status", "zh-CN": "状态" },

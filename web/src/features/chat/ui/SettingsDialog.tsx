@@ -347,7 +347,10 @@ function NotificationsSection() {
     mutationFn: setMentionEmailPref,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["mention-email-pref"] }),
   });
-  const enabled = prefQuery.data ?? null;
+  // Defaults to on (matching the server's default) instead of looking off
+  // while the real preference is still loading.
+  const enabled = prefQuery.data ?? true;
+  const interactive = !prefQuery.isLoading && !toggleMutation.isPending;
 
   return (
     <div className="max-w-2xl">
@@ -360,12 +363,12 @@ function NotificationsSection() {
           </p>
         </div>
         <button
-          aria-checked={enabled ?? false}
+          aria-checked={enabled}
           aria-label={t("notifications.mentionEmail")}
           className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
             enabled ? "bg-primary" : "bg-foreground/20"
           }`}
-          disabled={enabled === null || toggleMutation.isPending}
+          disabled={!interactive}
           role="switch"
           type="button"
           onClick={() => toggleMutation.mutate(!enabled)}

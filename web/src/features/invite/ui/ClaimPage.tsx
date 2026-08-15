@@ -13,7 +13,10 @@ import {
   generateIdentitySecretKey,
   restoreIdentityBackup,
 } from "@/shared/lib/nostr-signer";
-import { PENDING_PROFILE_NAME_KEY } from "@/shared/lib/pending-profile";
+import {
+  PENDING_DEFAULT_CHANNELS_KEY,
+  PENDING_PROFILE_NAME_KEY,
+} from "@/shared/lib/pending-profile";
 import { Button } from "@/shared/ui/button";
 
 type NewClaim = { kind: "new"; relayUrl: string; inviteCode: string };
@@ -63,6 +66,7 @@ async function claimAsNewMember(claim: NewClaim, token: string, name: string): P
     secret.fill(0);
   }
   window.localStorage.setItem(PENDING_PROFILE_NAME_KEY, name.trim());
+  window.localStorage.setItem(PENDING_DEFAULT_CHANNELS_KEY, "1");
   window.location.assign("/");
 }
 
