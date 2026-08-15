@@ -159,6 +159,8 @@ const messages = {
   "identity.newPassphrase": { en: "New vault passphrase", "zh-CN": "新保险库口令" },
   "identity.nip07": { en: "Use NIP-07 extension", "zh-CN": "使用 NIP-07 扩展" },
   "identity.noSaved": { en: "No saved identities on this device", "zh-CN": "此设备没有已保存身份" },
+  "identity.joinWithEmail": { en: "Join or log in with your email", "zh-CN": "使用邮箱加入或登录" },
+  "identity.orAdvanced": { en: "Already have a Nostr key?", "zh-CN": "已经有 Nostr 密钥了？" },
   "identity.or": { en: "or", "zh-CN": "或" },
   "identity.passphrase": { en: "Vault passphrase", "zh-CN": "保险库口令" },
   "identity.privateKeyNotice": {

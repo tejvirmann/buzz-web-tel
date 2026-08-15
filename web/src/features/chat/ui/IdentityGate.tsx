@@ -157,6 +157,19 @@ export function IdentityGate({
           </div>
         ) : mode === "saved" ? (
           <div className="space-y-4 p-6">
+            <div className="space-y-3">
+              <a
+                className="flex h-10 w-full items-center justify-center rounded-md bg-primary text-sm font-medium text-primary-foreground hover:opacity-90"
+                href="/join"
+              >
+                {t("identity.joinWithEmail")}
+              </a>
+              {!vaults.length ? (
+                <p className="text-center text-[11px] text-muted-foreground">
+                  {t("identity.orAdvanced")}
+                </p>
+              ) : null}
+            </div>
             {vaults.length ? (
               <form
                 className="space-y-4"
