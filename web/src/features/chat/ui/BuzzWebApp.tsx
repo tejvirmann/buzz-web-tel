@@ -372,6 +372,7 @@ function Workspace({
         canManageMembers={canCreateChannel}
         channels={state.channels}
         communityName={config.communityName}
+        brandLogoUrl={config.branding.logoUrl}
         connectionState={state.connectionState}
         currentPubkey={pubkey}
         channelUnreadCounts={inbox.channelUnreadCounts}
