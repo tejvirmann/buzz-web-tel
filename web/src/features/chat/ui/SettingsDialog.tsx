@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Bell,
+  Check,
+  Copy,
   Download,
   KeyRound,
   LoaderCircle,
@@ -13,6 +15,7 @@ import {
   UserRoundPlus,
 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import type { UserProfile } from "@/features/chat/lib/chat-types";
 import { connectionStateLabel } from "@/features/chat/lib/connection-state";
 import { DialogFrame } from "@/features/chat/ui/AppDialogs";
@@ -237,6 +240,17 @@ function IdentitySection({
     queryKey: ["buzz-download-url"],
     queryFn: resolveBuzzDownloadUrl,
   });
+  const [addressCopied, setAddressCopied] = useState(false);
+  const copyRelayAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(relayUrl);
+      setAddressCopied(true);
+      toast.success(t("common.copied"));
+      window.setTimeout(() => setAddressCopied(false), 2_000);
+    } catch {
+      toast.error(t("error.clipboard"));
+    }
+  };
 
   return (
     <div className="max-w-2xl">
@@ -344,8 +358,26 @@ function IdentitySection({
           <p className="mt-2 text-xs leading-5 text-muted-foreground">
             {t("identity.otherDevicesDescription")}
           </p>
+          <label className="mt-4 block text-xs font-medium">
+            {t("identity.relayAddressLabel")}
+            <div className="mt-1.5 flex items-center gap-2 rounded-md border bg-background px-3 py-2">
+              <span className="min-w-0 flex-1 truncate font-mono text-xs">{relayUrl}</span>
+              <button
+                aria-label={t("common.copy")}
+                className="buzz-icon-button h-7 w-7 flex-none"
+                type="button"
+                onClick={() => void copyRelayAddress()}
+              >
+                {addressCopied ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </div>
+          </label>
           <a
-            className="mt-4 inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium hover:bg-foreground/5"
+            className="mt-3 inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium hover:bg-foreground/5"
             href={downloadQuery.data ?? BUZZ_RELEASES_URL}
             rel="noreferrer"
             target="_blank"
