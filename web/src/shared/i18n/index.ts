@@ -147,9 +147,13 @@ const messages = {
   "identity.downloadBackup": { en: "Download backup", "zh-CN": "下载备份" },
   "identity.otherDevices": { en: "Use on desktop", "zh-CN": "在桌面端使用" },
   "identity.otherDevicesDescription": {
-    en: 'To sign into this same account in the Buzz desktop app, create a backup above, then choose "Restore" in the desktop app and paste in the backup and its passphrase.',
+    en: 'To sign into this same account in the Buzz desktop app, create a backup above, then choose "Restore" in the desktop app and paste in the backup, its passphrase, and the relay address below.',
     "zh-CN":
-      "要在 Buzz 桌面应用中登录同一账号，请先在上方创建备份，然后在桌面应用中选择“恢复”，粘贴备份内容及其口令。",
+      "要在 Buzz 桌面应用中登录同一账号，请先在上方创建备份，然后在桌面应用中选择“恢复”，粘贴备份内容、口令以及下方的 Relay 地址。",
+  },
+  "identity.relayAddressLabel": {
+    en: "Relay address (the desktop app will ask for this too)",
+    "zh-CN": "Relay 地址（桌面应用也会要求填写）",
   },
   "identity.downloadDesktop": { en: "Download Buzz for desktop", "zh-CN": "下载 Buzz 桌面版" },
   "identity.extensionBackup": {
